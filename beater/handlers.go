@@ -47,6 +47,7 @@ type ProcessorHandler func(ProcessorFactory, Config, processor.Config, reporter)
 type routeMapping struct {
 	ProcessorHandler
 	ProcessorFactory
+	Frontend bool
 }
 
 var (
@@ -62,19 +63,19 @@ var (
 	errNoContent       = errors.New("no content")
 
 	Routes = map[string]routeMapping{
-		BackendTransactionsURL:  {backendHandler, transaction.NewProcessor},
-		FrontendTransactionsURL: {frontendHandler, transaction.NewProcessor},
-		BackendErrorsURL:        {backendHandler, perr.NewProcessor},
-		FrontendErrorsURL:       {frontendHandler, perr.NewProcessor},
-		HealthCheckURL:          {healthCheckHandler, healthcheck.NewProcessor},
-		SourcemapsURL:           {sourcemapHandler, sourcemap.NewProcessor},
+		BackendTransactionsURL:  {backendHandler, transaction.NewProcessor, false},
+		FrontendTransactionsURL: {frontendHandler, transaction.NewProcessor, true},
+		BackendErrorsURL:        {backendHandler, perr.NewProcessor, false},
+		FrontendErrorsURL:       {frontendHandler, perr.NewProcessor, true},
+		HealthCheckURL:          {healthCheckHandler, healthcheck.NewProcessor, false},
+		SourcemapsURL:           {sourcemapHandler, sourcemap.NewProcessor, true},
 	}
 )
 
 func newMuxer(config Config, report reporter) *http.ServeMux {
 	mux := http.NewServeMux()
 
-	prConfig := processor.Config{}
+	var smapAccessor utility.SmapAccessor
 	if config.Frontend.isEnabled() && config.Frontend.Sourcemapping.isSetup() {
 		smapConfig := utility.SmapConfig{
 			CacheExpiration:      config.Frontend.Sourcemapping.Cache.Expiration,
@@ -82,16 +83,19 @@ func newMuxer(config Config, report reporter) *http.ServeMux {
 			ElasticsearchConfig:  config.Frontend.Sourcemapping.Elasticsearch,
 			Index:                config.Frontend.Sourcemapping.Index,
 		}
-		smapAccessor, err := utility.NewSourcemapAccessor(smapConfig)
+		var err error
+		smapAccessor, err = utility.NewSourcemapAccessor(smapConfig)
 		if err != nil {
 			logp.Err(err.Error())
-		} else {
-			prConfig.SmapAccessor = smapAccessor
 		}
 	}
 
 	for path, mapping := range Routes {
 		logp.Info("Path %s added to request handler", path)
+		prConfig := processor.Config{IsFrontend: mapping.Frontend}
+		if mapping.Frontend {
+			prConfig.SmapAccessor = smapAccessor
+		}
 		mux.Handle(path, mapping.ProcessorHandler(mapping.ProcessorFactory, config, prConfig, report))
 	}
 

@@ -43,11 +43,7 @@ class Test(ElasticTest):
                            "query": {"term": {"processor.event": "transaction"}}})
         assert rs['count'] == 4, "found {} documents".format(rs['count'])
 
-        rs = self.es.search(index=self.index_name, body={
-            "query": {"term": {"processor.event": "span"}}})
-        assert rs['hits']['total'] == 5, "found {} documents".format(rs['count'])
-        for doc in rs['hits']['hits']:
-            self.check_for_no_smap(doc["_source"]["span"])
+        self.check_backend_transaction(count=5)
 
     @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
     def test_load_docs_with_template_and_add_error(self):
@@ -64,25 +60,24 @@ class Test(ElasticTest):
         self.load_docs_with_template(f, self.errors_url, 'error', 4)
         self.assert_no_logged_warnings()
 
-        rs = self.es.search(index=self.index_name, body={
-            "query": {"term": {"processor.event": "error"}}})
-        assert rs['hits']['total'] == 4, "found {} documents".format(rs['count'])
-
-        for error_doc in rs['hits']['hits']:
-            err = error_doc["_source"]["error"]
-            if "exception" in err:
-                self.check_for_no_smap(err["exception"])
-            if "log" in error_doc["_source"]["error"]:
-                self.check_for_no_smap(err["log"])
-
-    def check_for_no_smap(self, doc):
-        if "stacktrace" not in doc:
-            return
-        for frame in doc["stacktrace"]:
-            assert "sourcemap" not in frame
+        self.check_backend_error(count=4)
 
 
 class SourcemappingIntegrationTest(ElasticTest, ClientSideBaseTest):
+
+    @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
+    def test_no_sourcemap_mapping_for_backend_error(self):
+        path = 'http://localhost:8000/test/e2e/general-usecase/bundle.js.map'
+        r = self.upload_sourcemap(file_name='bundle.js.map', bundle_filepath=path)
+        assert r.status_code == 202, r.status_code
+        self.wait_for_sourcemaps()
+
+        self.load_docs_with_template(self.get_error_payload_path(),
+                                     'http://localhost:8200/v1/errors',
+                                     'error',
+                                     1)
+        self.assert_no_logged_warnings()
+        self.check_backend_error()
 
     @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
     def test_sourcemap_mappingES_for_error(self):
@@ -98,6 +93,22 @@ class SourcemappingIntegrationTest(ElasticTest, ClientSideBaseTest):
                                      1)
         self.assert_no_logged_warnings()
         self.check_error_smap(True, count=1)
+
+    @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
+    def test_no_sourcemap_mapping_for_backend_transaction(self):
+        path = 'http://localhost:8000/test/e2e/general-usecase/bundle.js.map'
+        r = self.upload_sourcemap(file_name='bundle.js.map',
+                                  bundle_filepath=path,
+                                  service_version='1.0.0')
+        assert r.status_code == 202, r.status_code
+        self.wait_for_sourcemaps()
+
+        self.load_docs_with_template(self.get_transaction_payload_path(),
+                                     'http://localhost:8200/v1/transactions',
+                                     'transaction',
+                                     2)
+        self.assert_no_logged_warnings()
+        self.check_backend_transaction()
 
     @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
     def test_sourcemap_mappingES_for_transaction(self):

@@ -179,6 +179,30 @@ class ElasticTest(ServerBaseTest):
             )['count'] == expected_events_count)
         )
 
+    def check_backend_error(self, count=1):
+        rs = self.es.search(index=self.index_name, body={
+            "query": {"term": {"processor.event": "error"}}})
+        assert rs['hits']['total'] == count, "found {} documents, expected {}".format(rs['hits']['total'], count)
+        for doc in rs['hits']['hits']:
+            err = doc["_source"]["error"]
+            if "exception" in err:
+                self.check_for_no_smap(err["exception"])
+            if "log" in err:
+                self.check_for_no_smap(err["log"])
+
+    def check_backend_transaction(self, count=1):
+        rs = self.es.search(index=self.index_name, body={
+            "query": {"term": {"processor.event": "span"}}})
+        assert rs['hits']['total'] == count, "found {} documents, expected {}".format(rs['hits']['total'], count)
+        for doc in rs['hits']['hits']:
+            self.check_for_no_smap(doc["_source"]["span"])
+
+    def check_for_no_smap(self, doc):
+        if "stacktrace" not in doc:
+            return
+        for frame in doc["stacktrace"]:
+            assert "sourcemap" not in frame
+
 
 class ClientSideBaseTest(ServerBaseTest):
 
