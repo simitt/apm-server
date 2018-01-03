@@ -22,7 +22,7 @@ func New(b *beat.Beat, ucfg *common.Config) (beat.Beater, error) {
 	}
 
 	if b.Config.Output.Name() == "elasticsearch" {
-		beaterConfig.Frontend.Sourcemapping.Elasticsearch = b.Config.Output.Config()
+		beaterConfig.Frontend.Sourcemapping.elasticsearch = b.Config.Output.Config()
 	}
 
 	bt := &beater{

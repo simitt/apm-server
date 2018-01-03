@@ -18,7 +18,6 @@ type Processor interface {
 
 type Config struct {
 	SmapAccessor utility.SmapAccessor
-	IsFrontend   bool
 }
 
 func CreateDoc(timestamp time.Time, docMappings []utility.DocMapping) beat.Event {

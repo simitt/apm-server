@@ -150,11 +150,7 @@ func (s *SourcemapAccessor) fetchFromES(smapId SmapID) (*sourcemap.Consumer, err
 	if err != nil {
 		return nil, err
 	}
-	smapByte, err := json.Marshal(smap)
-	if err != nil {
-		return nil, SmapError{Msg: err.Error(), Kind: MapError}
-	}
-	cons, err := sourcemap.Parse("", smapByte)
+	cons, err := sourcemap.Parse("", []byte(smap))
 	if err != nil {
 		return nil, SmapError{Msg: err.Error(), Kind: MapError}
 	}
@@ -176,22 +172,22 @@ func (s *SourcemapAccessor) runESQuery(body map[string]interface{}) (*elasticsea
 	return result, nil
 }
 
-func parseSmap(result *elasticsearch.SearchResults) (interface{}, error) {
+func parseSmap(result *elasticsearch.SearchResults) (string, error) {
 	var smap interface{}
 	err := json.Unmarshal(result.Hits.Hits[0], &smap)
 	if err != nil {
-		return nil, SmapError{Msg: err.Error(), Kind: ParseError}
+		return "", SmapError{Msg: err.Error(), Kind: ParseError}
 	}
 	if s, ok := smap.(map[string]interface{}); ok {
 		if s, ok = s["_source"].(map[string]interface{}); ok {
 			if s, ok = s["sourcemap"].(map[string]interface{}); ok {
-				if smap, ok = s["sourcemap"]; ok {
-					return smap, nil
+				if smap, ok = s["sourcemap"].(string); ok {
+					return smap.(string), nil
 				}
 			}
 		}
 	}
-	return nil, SmapError{Msg: "Sourcemapping ES Result not in expected format", Kind: ParseError}
+	return "", SmapError{Msg: "Sourcemapping ES Result not in expected format", Kind: ParseError}
 }
 
 func (s *SmapID) key() string {

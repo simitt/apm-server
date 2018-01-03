@@ -1,9 +1,12 @@
 package beater
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/elastic/apm-server/utility"
 	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/libbeat/logp"
 )
 
 type Config struct {
@@ -27,9 +30,11 @@ type FrontendConfig struct {
 }
 
 type Sourcemapping struct {
-	Cache         *Cache `config:"cache"`
-	Index         string `config:"index"`
-	Elasticsearch *common.Config
+	Cache *Cache `config:"cache"`
+	Index string `config:"index"`
+
+	elasticsearch *common.Config
+	accessor      utility.SmapAccessor
 }
 
 type Cache struct {
@@ -52,7 +57,28 @@ func (c *FrontendConfig) isEnabled() bool {
 }
 
 func (s *Sourcemapping) isSetup() bool {
-	return s != nil && (s.Elasticsearch != nil)
+	return s != nil && (s.elasticsearch != nil)
+}
+
+func (c *FrontendConfig) SmapAccessor() utility.SmapAccessor {
+	smap := c.Sourcemapping
+	if c.isEnabled() && smap.isSetup() {
+		if smap.accessor == nil {
+			smapConfig := utility.SmapConfig{
+				CacheExpiration:      smap.Cache.Expiration,
+				CacheCleanupInterval: smap.Cache.CleanupInterval,
+				ElasticsearchConfig:  smap.elasticsearch,
+				Index:                smap.Index,
+			}
+			smapAccessor, err := utility.NewSourcemapAccessor(smapConfig)
+			if err != nil {
+				logp.Err(fmt.Sprintf("Error creating Sourcemap Accessor: %v", err.Error()))
+			}
+			c.Sourcemapping.accessor = smapAccessor
+		}
+		return c.Sourcemapping.accessor
+	}
+	return nil
 }
 
 var defaultConfig = Config{

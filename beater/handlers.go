@@ -20,7 +20,6 @@ import (
 	"github.com/elastic/apm-server/processor/healthcheck"
 	"github.com/elastic/apm-server/processor/sourcemap"
 	"github.com/elastic/apm-server/processor/transaction"
-	"github.com/elastic/apm-server/utility"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/monitoring"
 )
@@ -42,12 +41,11 @@ const (
 
 type ProcessorFactory func(*processor.Config) processor.Processor
 
-type ProcessorHandler func(ProcessorFactory, Config, processor.Config, reporter) http.Handler
+type ProcessorHandler func(ProcessorFactory, Config, reporter) http.Handler
 
 type routeMapping struct {
 	ProcessorHandler
 	ProcessorFactory
-	Frontend bool
 }
 
 var (
@@ -63,67 +61,47 @@ var (
 	errNoContent       = errors.New("no content")
 
 	Routes = map[string]routeMapping{
-		BackendTransactionsURL:  {backendHandler, transaction.NewProcessor, false},
-		FrontendTransactionsURL: {frontendHandler, transaction.NewProcessor, true},
-		BackendErrorsURL:        {backendHandler, perr.NewProcessor, false},
-		FrontendErrorsURL:       {frontendHandler, perr.NewProcessor, true},
-		HealthCheckURL:          {healthCheckHandler, healthcheck.NewProcessor, false},
-		SourcemapsURL:           {sourcemapHandler, sourcemap.NewProcessor, true},
+		BackendTransactionsURL:  {backendHandler, transaction.NewProcessor},
+		FrontendTransactionsURL: {frontendHandler, transaction.NewProcessor},
+		BackendErrorsURL:        {backendHandler, perr.NewProcessor},
+		FrontendErrorsURL:       {frontendHandler, perr.NewProcessor},
+		HealthCheckURL:          {healthCheckHandler, healthcheck.NewProcessor},
+		SourcemapsURL:           {sourcemapHandler, sourcemap.NewProcessor},
 	}
 )
 
 func newMuxer(config Config, report reporter) *http.ServeMux {
 	mux := http.NewServeMux()
-
-	var smapAccessor utility.SmapAccessor
-	if config.Frontend.isEnabled() && config.Frontend.Sourcemapping.isSetup() {
-		smapConfig := utility.SmapConfig{
-			CacheExpiration:      config.Frontend.Sourcemapping.Cache.Expiration,
-			CacheCleanupInterval: config.Frontend.Sourcemapping.Cache.CleanupInterval,
-			ElasticsearchConfig:  config.Frontend.Sourcemapping.Elasticsearch,
-			Index:                config.Frontend.Sourcemapping.Index,
-		}
-		var err error
-		smapAccessor, err = utility.NewSourcemapAccessor(smapConfig)
-		if err != nil {
-			logp.Err(err.Error())
-		}
-	}
-
 	for path, mapping := range Routes {
 		logp.Info("Path %s added to request handler", path)
-		prConfig := processor.Config{IsFrontend: mapping.Frontend}
-		if mapping.Frontend {
-			prConfig.SmapAccessor = smapAccessor
-		}
-		mux.Handle(path, mapping.ProcessorHandler(mapping.ProcessorFactory, config, prConfig, report))
+		mux.Handle(path, mapping.ProcessorHandler(mapping.ProcessorFactory, config, report))
 	}
 
 	return mux
 }
 
-func backendHandler(pf ProcessorFactory, config Config, prConfig processor.Config, report reporter) http.Handler {
+func backendHandler(pf ProcessorFactory, config Config, report reporter) http.Handler {
 	return logHandler(
 		authHandler(config.SecretToken,
-			processRequestHandler(pf, prConfig, report, decodeLimitJSONData(config.MaxUnzippedSize))))
+			processRequestHandler(pf, nil, report, decodeLimitJSONData(config.MaxUnzippedSize))))
 }
 
-func frontendHandler(pf ProcessorFactory, config Config, prConfig processor.Config, report reporter) http.Handler {
+func frontendHandler(pf ProcessorFactory, config Config, report reporter) http.Handler {
 	return logHandler(
 		killSwitchHandler(config.Frontend.isEnabled(),
 			ipRateLimitHandler(config.Frontend.RateLimit,
 				corsHandler(config.Frontend.AllowOrigins,
-					processRequestHandler(pf, prConfig, report, decodeLimitJSONData(config.MaxUnzippedSize))))))
+					processRequestHandler(pf, &processor.Config{SmapAccessor: config.Frontend.SmapAccessor()}, report, decodeLimitJSONData(config.MaxUnzippedSize))))))
 }
 
-func sourcemapHandler(pf ProcessorFactory, config Config, prConfig processor.Config, report reporter) http.Handler {
+func sourcemapHandler(pf ProcessorFactory, config Config, report reporter) http.Handler {
 	return logHandler(
 		killSwitchHandler(config.Frontend.isEnabled(),
 			authHandler(config.SecretToken,
-				processRequestHandler(pf, prConfig, report, sourcemap.DecodeSourcemapFormData))))
+				processRequestHandler(pf, &processor.Config{SmapAccessor: config.Frontend.SmapAccessor()}, report, sourcemap.DecodeSourcemapFormData))))
 }
 
-func healthCheckHandler(_ ProcessorFactory, _ Config, _ processor.Config, _ reporter) http.Handler {
+func healthCheckHandler(_ ProcessorFactory, _ Config, _ reporter) http.Handler {
 	return logHandler(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sendStatus(w, r, http.StatusOK, nil)
@@ -272,9 +250,9 @@ func corsHandler(allowedOrigins []string, h http.Handler) http.Handler {
 	})
 }
 
-func processRequestHandler(pf ProcessorFactory, prConfig processor.Config, report reporter, decode decoder) http.Handler {
+func processRequestHandler(pf ProcessorFactory, prConfig *processor.Config, report reporter, decode decoder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		code, err := processRequest(r, pf, &prConfig, report, decode)
+		code, err := processRequest(r, pf, prConfig, report, decode)
 		sendStatus(w, r, code, err)
 	})
 }
