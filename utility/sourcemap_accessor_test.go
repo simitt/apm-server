@@ -46,18 +46,6 @@ func TestNewSourcemapAccessor(t *testing.T) {
 	assert.Equal(t, smapAcc.index, "test-index*")
 }
 
-func TestFetchFromUninitialized(t *testing.T) {
-	smapAcc, err := NewSourcemapAccessor(getValidConfig())
-	assert.NoError(t, err)
-	smapAcc.esClients = nil
-
-	smap, err := smapAcc.Fetch(SmapID{})
-	assert.Error(t, err)
-	assert.Equal(t, (err.(SmapError)).Kind, InitError)
-	assert.True(t, strings.Contains(err.Error(), "ESClient requested but not initialized"))
-	assert.Nil(t, smap)
-}
-
 func TestAddAndFetchFromCache(t *testing.T) {
 	config := getValidConfig()
 	config.CacheExpiration = 25 * time.Millisecond

@@ -76,19 +76,16 @@ func NewSourcemapAccessor(config SmapConfig) (*SourcemapAccessor, error) {
 }
 
 func (s *SourcemapAccessor) Fetch(smapId SmapID) (*sourcemap.Consumer, error) {
-	smapConsumer, err := s.fetchFromCache(smapId)
+	smapConsumer := s.fetchFromCache(smapId)
+	if smapConsumer != nil {
+		return smapConsumer, nil
+	}
+	smapConsumer, err := s.fetchFromES(smapId)
 	if err != nil {
-		logp.Err(fmt.Sprintf("Sourcemap fetching from Cache Error %s", err.Error()))
+		return nil, err
 	}
-	if smapConsumer == nil {
-		smapConsumer, err = s.fetchFromES(smapId)
-		if err != nil {
-			logp.Err(fmt.Sprintf("Sourcemap fetching from ES Error %s", err.Error()))
-			return nil, err
-		}
-		s.AddToCache(smapId, smapConsumer)
-	}
-	return smapConsumer, err
+	s.AddToCache(smapId, smapConsumer)
+	return smapConsumer, nil
 }
 
 func (s *SourcemapAccessor) AddToCache(smapId SmapID, smap *sourcemap.Consumer) {
@@ -101,23 +98,14 @@ func (s *SourcemapAccessor) RemoveFromCache(smapId SmapID) {
 	logp.Debug("sourcemap", "Removed smapId %v. Cache now has %v entries.", smapId.key(), s.smapCache.ItemCount())
 }
 
-func (s *SourcemapAccessor) fetchFromCache(smapId SmapID) (*sourcemap.Consumer, error) {
-	if s.smapCache == nil {
-		msg := "SourceMap Cache requested but not initialized"
-		return nil, SmapError{Msg: msg, Kind: InitError}
-	}
+func (s *SourcemapAccessor) fetchFromCache(smapId SmapID) *sourcemap.Consumer {
 	if cached, found := s.smapCache.Get(smapId.key()); found {
-		return cached.(*sourcemap.Consumer), nil
+		return cached.(*sourcemap.Consumer)
 	}
-	return nil, nil
+	return nil
 }
 
 func (s *SourcemapAccessor) fetchFromES(smapId SmapID) (*sourcemap.Consumer, error) {
-	if s.esClients == nil || len(s.esClients) == 0 {
-		msg := "Sourcemap ESClient requested but not initialized."
-		return nil, SmapError{Msg: msg, Kind: InitError}
-	}
-
 	body := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{

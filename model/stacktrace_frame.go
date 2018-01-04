@@ -75,6 +75,7 @@ func (s *StacktraceFrame) applySourcemap(service Service, smapAccessor utility.S
 		Path:           cleanedPath,
 	})
 	if err != nil {
+		logp.Err(fmt.Sprintf("Sourcemap fetching Error %s", err.Error()))
 		e, isSmapError := err.(utility.SmapError)
 		if !isSmapError || e.Kind == utility.MapError {
 			s.updateError(err.Error())

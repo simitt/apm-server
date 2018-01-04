@@ -21,10 +21,6 @@ apm-server:
   #ssl.certificate : "path/to/cert"
   #ssl.key : "path/to/private_key"
 
-  # In case frontend is enabled
-  # and the index pattern at 'outputs.elasticsearch.index' is customized,
-  # a matching 'frontend.sourcemapping.index' pattern needs to be specified
-  # to allow for sourcemapping to work properly. 
   #frontend:
     #enabled: false
 
@@ -42,4 +38,8 @@ apm-server:
       #cache:
         #expiration: 300 #seconds
         #cleanup_interval: 600 #seconds
-      #index: "apm-"
+      #Sourcemaps are stored in the same index as transaction and error documents.
+      #If the default index pattern at 'outputs.elasticsearch.index' is changed,
+      #a matching index pattern needs to be specified here.
+      #Note that an '*' is added automatically to this index pattern when querying for sourcemaps.
+      #index: "apm"
