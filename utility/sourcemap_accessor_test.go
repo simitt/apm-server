@@ -89,6 +89,36 @@ func TestFetchFromES(t *testing.T) {
 	//ES functionality needs to be tested in system tests
 }
 
+func TestParseSourcemapResult(t *testing.T) {
+	smap, err := parseSmap([]byte(`{
+  "_id": "1",
+  "_source": {
+    "sourcemap": {
+      "sourcemap": "map"
+    }
+  }
+}
+`))
+	assert.NoError(t, err)
+	assert.Equal(t, "map", smap)
+}
+
+func TestParseSourcemapResultError(t *testing.T) {
+	// valid json, missing sourcemap
+	_, err := parseSmap([]byte(`{
+  "_id": "1",
+  "_source": {
+    "foo": "bar"
+  }
+}
+`))
+	assert.Error(t, err)
+
+	// invalid json
+	_, err = parseSmap([]byte(`{`))
+	assert.Error(t, err)
+}
+
 func getValidConfig() SmapConfig {
 	return SmapConfig{
 		ElasticsearchConfig:  getTestESConfig(nil),

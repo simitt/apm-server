@@ -134,7 +134,7 @@ func (s *SourcemapAccessor) fetchFromES(smapId SmapID) (*sourcemap.Consumer, err
 	if result.Hits.Total == 0 {
 		return nil, SmapError{Msg: fmt.Sprintf("No Sourcemap available for %v.", smapId.id()), Kind: MapError}
 	}
-	smap, err := parseSmap(result)
+	smap, err := parseSmap(result.Hits.Hits[0])
 	if err != nil {
 		return nil, err
 	}
@@ -160,22 +160,23 @@ func (s *SourcemapAccessor) runESQuery(body map[string]interface{}) (*elasticsea
 	return result, nil
 }
 
-func parseSmap(result *elasticsearch.SearchResults) (string, error) {
-	var smap interface{}
-	err := json.Unmarshal(result.Hits.Hits[0], &smap)
+func parseSmap(result []byte) (string, error) {
+	var smap struct {
+		Source struct {
+			Sourcemap struct {
+				Sourcemap string
+			}
+		} `json:"_source"`
+	}
+	err := json.Unmarshal(result, &smap)
 	if err != nil {
 		return "", SmapError{Msg: err.Error(), Kind: ParseError}
 	}
-	if s, ok := smap.(map[string]interface{}); ok {
-		if s, ok = s["_source"].(map[string]interface{}); ok {
-			if s, ok = s["sourcemap"].(map[string]interface{}); ok {
-				if smap, ok = s["sourcemap"].(string); ok {
-					return smap.(string), nil
-				}
-			}
-		}
+	// until https://github.com/golang/go/issues/19858 is resolved
+	if smap.Source.Sourcemap.Sourcemap == "" {
+		return "", SmapError{Msg: "Sourcemapping ES Result not in expected format", Kind: ParseError}
 	}
-	return "", SmapError{Msg: "Sourcemapping ES Result not in expected format", Kind: ParseError}
+	return smap.Source.Sourcemap.Sourcemap, nil
 }
 
 func (s *SmapID) key() string {
