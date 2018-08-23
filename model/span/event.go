@@ -66,6 +66,7 @@ type Event struct {
 	// new in v2
 	HexId    *string
 	ParentId *string
+	TraceId  *string
 
 	// deprecated in v2
 	Id     *int
@@ -91,6 +92,7 @@ func V2DecodeEvent(input interface{}, err error) (transform.Transformable, error
 	decoder := utility.ManualDecoder{}
 	e.HexId = decoder.StringPtr(raw, "id")
 	e.ParentId = decoder.StringPtr(raw, "parent_id")
+	e.TraceId = decoder.StringPtr(raw, "trace_id")
 	return e, decoder.Err
 }
 
@@ -159,6 +161,7 @@ func (s *Event) fields(tctx *transform.Context) common.MapStr {
 	// v2
 	utility.Add(tr, "hex_id", s.HexId)
 	utility.Add(tr, "parent_id", s.ParentId)
+	utility.Add(tr, "trace_id", s.TraceId)
 
 	utility.Add(tr, "name", s.Name)
 	utility.Add(tr, "type", s.Type)
