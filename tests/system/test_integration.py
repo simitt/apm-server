@@ -1,12 +1,11 @@
 import os
+import json
 import unittest
 
 from apmserver import ElasticTest, ExpvarBaseTest
 from apmserver import ClientSideElasticTest, SmapIndexBaseTest, SmapCacheBaseTest
 from apmserver import SplitIndicesTest
 from beat.beat import INTEGRATION_TESTS
-import json
-import time
 
 
 class Test(ElasticTest):
@@ -112,9 +111,10 @@ class Test(ElasticTest):
                     self.assert_docs(rec[doc_type], appr[doc_type])
                     self.assert_docs(rec['context'], appr['context'])
                     self.assert_docs(rec['processor'], appr['processor'])
-            assert checked == True, "New entry with id {}".format(rec_id)
+            assert checked, "New entry with id {}".format(rec_id)
 
-    def get_id(self, doc):
+    @staticmethod
+    def get_id(doc):
         if 'id' in doc:
             return doc['id']
         else:
@@ -222,12 +222,13 @@ class RumEnabledIntegrationTest(ClientSideElasticTest):
         assert l_frames == library_frames, "found {}, expected {}".format(
             l_frames, library_frames)
 
-    def count_library_frames(self, doc, lf):
+    @staticmethod
+    def count_library_frames(doc, lf):
         if "stacktrace" not in doc:
             return
         for frame in doc["stacktrace"]:
             if frame.has_key("library_frame"):
-                k = "true" if frame["library_frame"] == True else "false"
+                k = "true" if frame["library_frame"] else "false"
                 lf[k] += 1
             else:
                 lf["empty"] += 1
@@ -302,8 +303,8 @@ class SourcemappingIntegrationTest(ClientSideElasticTest):
 
         self.upload_sourcemap(file_name='bundle.js.map', bundle_filepath=path)
         self.wait_for_sourcemaps(3)
-        assert self.log_contains(
-            "Multiple sourcemaps found"), "the 3rd fetch should query ES and find that there are 2 sourcemaps with the same caching key"
+        assert self.log_contains("Multiple sourcemaps found"), \
+            "the 3rd fetch should query ES and find that there are 2 sourcemaps with the same caching key"
 
         self.assert_no_logged_warnings(
             ["WARN.*Overriding sourcemap", "WARN.*Multiple sourcemaps"])
@@ -526,7 +527,8 @@ class MetricsIntegrationTest(ElasticTest):
         self.load_docs_with_template(self.get_payload_path("metricsets.ndjson"), self.intake_url, 'metric', 2)
         mappings = self.es.indices.get_field_mapping(index=self.index_name, fields="system.process.cpu.total.norm.pct")
         expected_type = "scaled_float"
-        actual_type = mappings[self.index_name]["mappings"]["_doc"]["system.process.cpu.total.norm.pct"]["mapping"]["pct"]["type"]
+        doc = mappings[self.index_name]["mappings"]["_doc"]
+        actual_type = doc["system.process.cpu.total.norm.pct"]["mapping"]["pct"]["type"]
         assert expected_type == actual_type, "want: {}, got: {}".format(expected_type, actual_type)
 
 
