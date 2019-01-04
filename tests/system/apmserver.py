@@ -39,8 +39,8 @@ class BaseTest(TestCase):
         with open(self.get_payload_path(name)) as f:
             return f.read()
 
-    def get_error_payload(self):
-        return self.get_payload_path("errors.ndjson")
+    def get_error_payload_path(self):
+        return self.get_payload_path("errors_2.ndjson")
 
     def get_transaction_payload_path(self):
         return self.get_payload_path("transactions.ndjson")

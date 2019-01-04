@@ -85,7 +85,7 @@ class Test(ElasticTest):
         This test starts the beat with a loaded template and sends error data to elasticsearch.
         It verifies that all data make it into ES means data is compatible with the template.
         """
-        self.load_docs_with_template(self.get_payload_path("errors.ndjson"),
+        self.load_docs_with_template(self.get_error_payload_path(),
                                      self.intake_url, 'error', 4)
         self.assert_no_logged_warnings()
 
