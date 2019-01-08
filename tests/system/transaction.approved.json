@@ -30,10 +30,6 @@
                         "version": "8"
                     },
                     "environment": "staging",
-                    "agent": {
-                        "name": "elastic-node",
-                        "version": "3.14.0"
-                    },
                     "name": "1234_service-12a3"
                 },
                 "custom": {
@@ -115,12 +111,6 @@
                     "headers_sent": true,
                     "finished": true,
                     "status_code": 200
-                },
-                "system": {
-                    "architecture": "x64",
-                    "hostname": "prod1.example.com",
-                    "platform": "darwin",
-                    "ip": "127.0.0.1"
                 }
             },
             "transaction": {
@@ -183,10 +173,6 @@
                         "version": "8"
                     },
                     "name": "1234_service-12a3",
-                    "agent": {
-                        "name": "elastic-node",
-                        "version": "3.14.0"
-                    },
                     "environment": "staging"
                 },
                 "process": {
@@ -197,12 +183,6 @@
                     "pid": 1234,
                     "title": "node",
                     "ppid": 6789
-                },
-                "system": {
-                    "architecture": "x64",
-                    "hostname": "prod1.example.com",
-                    "platform": "darwin",
-                    "ip": "127.0.0.1"
                 }
             },
             "transaction": {
@@ -255,17 +235,7 @@
                         "version": "8"
                     },
                     "name": "1234_service-12a3",
-                    "agent": {
-                        "name": "elastic-node",
-                        "version": "3.14.0"
-                    },
                     "environment": "staging"
-                },
-                "system": {
-                    "architecture": "x64",
-                    "ip": "127.0.0.1",
-                    "hostname": "prod1.example.com",
-                    "platform": "darwin"
                 },
                 "process": {
                     "argv": [
@@ -324,17 +294,7 @@
                         "version": "8"
                     },
                     "environment": "staging",
-                    "agent": {
-                        "name": "elastic-node",
-                        "version": "3.14.0"
-                    },
                     "name": "1234_service-12a3"
-                },
-                "system": {
-                    "architecture": "x64",
-                    "hostname": "prod1.example.com",
-                    "platform": "darwin",
-                    "ip": "127.0.0.1"
                 },
                 "process": {
                     "argv": [

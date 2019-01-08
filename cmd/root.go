@@ -59,6 +59,9 @@ func init() {
 				},
 			},
 		},
+		"processors": []map[string]interface{}{
+			{"add_apm_metadata": nil},
+		},
 	})
 
 	var runFlags = pflag.NewFlagSet(Name, pflag.ExitOnError)
