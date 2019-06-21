@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
+
 	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	"github.com/ryanuber/go-glob"
@@ -214,6 +216,16 @@ func authHandler(secretToken string, h http.Handler) http.Handler {
 	})
 }
 
+func jwtHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isJWTAuthorized(r) {
+			sendStatus(w, r, unauthorizedResponse)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 // isAuthorized checks the Authorization header. It must be in the form of:
 //   Authorization: Bearer <secret-token>
 // Bearer must be part of it.
@@ -228,6 +240,30 @@ func isAuthorized(req *http.Request, secretToken string) bool {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(parts[1]), []byte(secretToken)) == 1
+}
+
+const secretTokenServiceA = "foobar"
+
+func isJWTAuthorized(req *http.Request) bool {
+	const alg = "alg"
+
+	header := req.Header.Get("Authorization")
+	parts := strings.Split(header, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		fmt.Println("Wrong auth method %+v", parts[0])
+		return false
+	}
+
+	token, err := jwt.Parse(parts[1], func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("invalid signing algorithm: %+v", token.Header[alg])
+		}
+
+		//find a way to verify against different secret per service without unpacking payload
+		return []byte(secretTokenServiceA), nil
+	})
+
+	return err == nil && token.Valid
 }
 
 func corsHandler(allowedOrigins []string, h http.Handler) http.Handler {
