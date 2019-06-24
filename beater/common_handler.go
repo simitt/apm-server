@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-
+	"github.com/dgrijalva/jwt-go/request"
 	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	"github.com/ryanuber/go-glob"
@@ -36,6 +36,7 @@ import (
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/monitoring"
 
+	apmjwt "github.com/elastic/apm-server/jwt"
 	"github.com/elastic/apm-server/utility"
 )
 
@@ -242,26 +243,23 @@ func isAuthorized(req *http.Request, secretToken string) bool {
 	return subtle.ConstantTimeCompare([]byte(parts[1]), []byte(secretToken)) == 1
 }
 
-const secretTokenServiceA = "foobar"
-
 func isJWTAuthorized(req *http.Request) bool {
+	// github.com/dgrijalva/jwt-go does not implement leeway (https://tools.ietf.org/html/rfc7519#section-4.1.4)
+	// either contribute back to library or handle with custom mapClaim
+	// need agreement on 'exp' to avoid timezone issues etc. used seconds since epoch heren.
+
+	var secretTokenServiceA = "foobar" // Can the RUM agent send serviceName header?
 	const alg = "alg"
 
-	header := req.Header.Get("Authorization")
-	parts := strings.Split(header, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		fmt.Println("Wrong auth method %+v", parts[0])
-		return false
-	}
-
-	token, err := jwt.Parse(parts[1], func(token *jwt.Token) (interface{}, error) {
+	opts := request.WithClaims(apmjwt.NewCustomClaims(0))
+	token, err := request.ParseFromRequest(req, request.AuthorizationHeaderExtractor, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("invalid signing algorithm: %+v", token.Header[alg])
 		}
 
 		//find a way to verify against different secret per service without unpacking payload
 		return []byte(secretTokenServiceA), nil
-	})
+	}, opts)
 
 	return err == nil && token.Valid
 }
