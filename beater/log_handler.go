@@ -34,7 +34,6 @@ func logHandler(h Handler) Handler {
 	logger := logp.NewLogger(logs.Request)
 
 	return func(c *request.Context) {
-		requestCounter.Inc()
 		reqID, err := uuid.NewV4()
 		if err != nil {
 			sendStatus(c, internalErrorResponse(err))

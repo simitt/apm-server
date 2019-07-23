@@ -31,26 +31,45 @@ import (
 )
 
 func TestIncCounter(t *testing.T) {
-	req, err := http.NewRequest(http.MethodPost, "_", nil)
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
 	require.NoError(t, err)
 	req.Header.Set("Accept", "application/json")
 	c := &request.Context{}
 	c.Reset(httptest.NewRecorder(), req)
 
+	requestCounter.Set(0)
 	responseCounter.Set(0)
 	responseErrors.Set(0)
-	for _, res := range []serverResponse{acceptedResponse, okResponse, forbiddenResponse(errors.New("")), unauthorizedResponse,
-		requestTooLargeResponse, rateLimitedResponse, methodNotAllowedResponse,
-		cannotValidateResponse(errors.New("")), cannotDecodeResponse(errors.New("")),
-		fullQueueResponse(errors.New("")), serverShuttingDownResponse(errors.New(""))} {
+	var n int64
+	for _, res := range []serverResponse{
+		acceptedResponse,
+		okResponse,
+		forbiddenResponse(errors.New("")),
+		unauthorizedResponse,
+		requestTooLargeResponse,
+		rateLimitedResponse,
+		methodNotAllowedResponse,
+		cannotValidateResponse(errors.New("")),
+		cannotDecodeResponse(errors.New("")),
+		fullQueueResponse(errors.New("")),
+		serverShuttingDownResponse(errors.New(""))} {
+
 		res.counter.Set(0)
 		for i := 1; i <= 5; i++ {
-			sendStatus(c, res)
+			n++
+			c.Reset(httptest.NewRecorder(), req)
+			monitoringHandler(func(c *request.Context) {
+				c.AddMonitoringCt(res.counter)
+				if res.err != nil {
+					c.SendError(nil, res.err, res.code)
+				}
+			})(c)
 			assert.Equal(t, int64(i), res.counter.Get(), string(res.code))
 		}
 	}
-	assert.Equal(t, int64(55), responseCounter.Get())
-	assert.Equal(t, int64(45), responseErrors.Get())
+	assert.Equal(t, n, requestCounter.Get())
+	assert.Equal(t, n, responseCounter.Get())
+	assert.Equal(t, int64(9*5), responseErrors.Get())
 }
 
 func TestOPTIONS(t *testing.T) {

@@ -80,18 +80,15 @@ func (v *intakeHandler) statusCode(sr *stream.Result) (int, *monitoring.Int) {
 
 func (v *intakeHandler) sendResponse(c *request.Context, sr *stream.Result) {
 	statusCode, counter := v.statusCode(sr)
-	responseCounter.Inc()
-	counter.Inc()
+	c.AddMonitoringCt(counter)
 
 	if statusCode == http.StatusAccepted {
-		responseSuccesses.Inc()
 		if _, ok := c.Req.URL.Query()["verbose"]; ok {
 			c.Send(sr, statusCode)
 		} else {
 			c.WriteHeader(statusCode)
 		}
 	} else {
-		responseErrors.Inc()
 		// this signals to the client that we're closing the connection
 		// but also signals to http.Server that it should close it:
 		// https://golang.org/src/net/http/server.go#L1254
@@ -149,7 +146,6 @@ func (v *intakeHandler) bodyReader(r *http.Request) (io.ReadCloser, *stream.Erro
 
 func (v *intakeHandler) Handle(beaterConfig *Config, report publish.Reporter) Handler {
 	return func(c *request.Context) {
-
 		serr := v.validateRequest(c.Req)
 		if serr != nil {
 			v.sendError(c, serr)

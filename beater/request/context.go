@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/elastic/beats/libbeat/monitoring"
+
 	"github.com/elastic/apm-server/beater/headers"
 	logs "github.com/elastic/apm-server/log"
 
@@ -43,11 +45,12 @@ var (
 type Context struct {
 	Req *http.Request
 
-	statusCode int
-	err        interface{}
-	stacktrace string
-
 	w http.ResponseWriter
+
+	statusCode    int
+	err           interface{}
+	stacktrace    string
+	monitoringCts []*monitoring.Int
 }
 
 // Reset allows to reuse a context by removing all request specific information
@@ -58,6 +61,7 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	c.statusCode = http.StatusOK
 	c.err = ""
 	c.stacktrace = ""
+	c.monitoringCts = nil
 }
 
 // Header returns the http.Header of the context's writer
@@ -80,9 +84,19 @@ func (c *Context) Stacktrace() string {
 	return c.stacktrace
 }
 
+// MonitoringCounts returns the monitoring integers collected through context processing
+func (c *Context) MonitoringCounts() []*monitoring.Int {
+	return c.monitoringCts
+}
+
 // AddStacktrace sets a stacktrace for the context
 func (c *Context) AddStacktrace(stacktrace string) {
 	c.stacktrace = stacktrace
+}
+
+// AddMonitoringCt adds request specific counter that should be increased during the request handling
+func (c *Context) AddMonitoringCt(i *monitoring.Int) {
+	c.monitoringCts = append(c.monitoringCts, i)
 }
 
 //TODO: All of the below methods will be changed during the response handling refactoring

@@ -51,12 +51,22 @@ var (
 	counter       = func(s string) *monitoring.Int {
 		return monitoring.NewInt(serverMetrics, s)
 	}
-	requestCounter    = counter("request.count")
-	responseCounter   = counter("response.count")
-	responseErrors    = counter("response.errors.count")
-	responseSuccesses = counter("response.valid.count")
-	responseOk        = counter("response.valid.ok")
-	responseAccepted  = counter("response.valid.accepted")
+	requestCounter            = counter("request.count")
+	responseCounter           = counter("response.count")
+	responseErrors            = counter("response.errors.count")
+	responseSuccesses         = counter("response.valid.count")
+	responseOk                = counter("response.valid.ok")
+	responseAccepted          = counter("response.valid.accepted")
+	internalErrorCounter      = counter("response.errors.internal")
+	forbiddenCounter          = counter("response.errors.forbidden")
+	requestTooLargeCounter    = counter("response.errors.toolarge")
+	decodeCounter             = counter("response.errors.decode")
+	validateCounter           = counter("response.errors.validate")
+	rateLimitCounter          = counter("response.errors.ratelimit")
+	methodNotAllowedCounter   = counter("response.errors.method")
+	fullQueueCounter          = counter("response.errors.queue")
+	serverShuttingDownCounter = counter("response.errors.closed")
+	unauthorizedCounter       = counter("response.errors.unauthorized")
 
 	okResponse = serverResponse{
 		code:    http.StatusOK,
@@ -66,7 +76,6 @@ var (
 		code:    http.StatusAccepted,
 		counter: responseAccepted,
 	}
-	internalErrorCounter  = counter("response.errors.internal")
 	internalErrorResponse = func(err error) serverResponse {
 		return serverResponse{
 			err:     errors.Wrap(err, "internal error"),
@@ -74,7 +83,6 @@ var (
 			counter: internalErrorCounter,
 		}
 	}
-	forbiddenCounter  = counter("response.errors.forbidden")
 	forbiddenResponse = func(err error) serverResponse {
 		return serverResponse{
 			err:     errors.Wrap(err, "forbidden request"),
@@ -85,15 +93,13 @@ var (
 	unauthorizedResponse = serverResponse{
 		err:     errors.New("invalid token"),
 		code:    http.StatusUnauthorized,
-		counter: counter("response.errors.unauthorized"),
+		counter: unauthorizedCounter,
 	}
-	requestTooLargeCounter  = counter("response.errors.toolarge")
 	requestTooLargeResponse = serverResponse{
 		err:     errors.New("request body too large"),
 		code:    http.StatusRequestEntityTooLarge,
 		counter: requestTooLargeCounter,
 	}
-	decodeCounter        = counter("response.errors.decode")
 	cannotDecodeResponse = func(err error) serverResponse {
 		return serverResponse{
 			err:     errors.Wrap(err, "data decoding error"),
@@ -101,7 +107,6 @@ var (
 			counter: decodeCounter,
 		}
 	}
-	validateCounter        = counter("response.errors.validate")
 	cannotValidateResponse = func(err error) serverResponse {
 		return serverResponse{
 			err:     errors.Wrap(err, "data validation error"),
@@ -109,19 +114,16 @@ var (
 			counter: validateCounter,
 		}
 	}
-	rateLimitCounter    = counter("response.errors.ratelimit")
 	rateLimitedResponse = serverResponse{
 		err:     errors.New("too many requests"),
 		code:    http.StatusTooManyRequests,
 		counter: rateLimitCounter,
 	}
-	methodNotAllowedCounter  = counter("response.errors.method")
 	methodNotAllowedResponse = serverResponse{
 		err:     errors.New("only POST requests are supported"),
 		code:    http.StatusMethodNotAllowed,
 		counter: methodNotAllowedCounter,
 	}
-	fullQueueCounter  = counter("response.errors.queue")
 	fullQueueResponse = func(err error) serverResponse {
 		return serverResponse{
 			err:     errors.Wrap(err, "queue is full"),
@@ -129,7 +131,6 @@ var (
 			counter: fullQueueCounter,
 		}
 	}
-	serverShuttingDownCounter  = counter("response.errors.closed")
 	serverShuttingDownResponse = func(err error) serverResponse {
 		return serverResponse{
 			err:     errors.New("server is shutting down"),
@@ -233,19 +234,13 @@ func corsHandler(allowedOrigins []string, h Handler) Handler {
 
 //TODO: move to Context when reworking response handling.
 func sendStatus(c *request.Context, res serverResponse) {
-	responseCounter.Inc()
-	res.counter.Inc()
-
 	if res.err != nil {
-		responseErrors.Inc()
-
 		body := map[string]interface{}{"error": res.err.Error()}
 		//TODO: refactor response handling: get rid of additional `error` and just pass in error
 		c.SendError(body, body, res.code)
 		return
-
 	}
-	responseSuccesses.Inc()
+
 	if res.body == nil {
 		c.WriteHeader(res.code)
 		return
