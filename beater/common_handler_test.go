@@ -60,9 +60,7 @@ func TestIncCounter(t *testing.T) {
 			c.Reset(httptest.NewRecorder(), req)
 			monitoringHandler(func(c *request.Context) {
 				c.AddMonitoringCt(res.counter)
-				if res.err != nil {
-					c.SendError(nil, res.err, res.code)
-				}
+				res.writeTo(c)
 			})(c)
 			assert.Equal(t, int64(i), res.counter.Get(), string(res.code))
 		}
@@ -110,11 +108,11 @@ func TestOkBody(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &request.Context{}
 	c.Reset(w, req)
-	sendStatus(c, serverResponse{
+	serverResponse{
 		code:    http.StatusNonAuthoritativeInfo,
 		counter: requestCounter,
 		body:    map[string]interface{}{"some": "body"},
-	})
+	}.writeTo(c)
 	rsp := w.Result()
 	got := body(t, rsp)
 	assert.Equal(t, "{\"some\":\"body\"}\n", string(got))
@@ -128,11 +126,11 @@ func TestOkBodyJson(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &request.Context{}
 	c.Reset(w, req)
-	sendStatus(c, serverResponse{
+	serverResponse{
 		code:    http.StatusNonAuthoritativeInfo,
 		counter: requestCounter,
 		body:    map[string]interface{}{"version": "1.0"},
-	})
+	}.writeTo(c)
 	rsp := w.Result()
 	got := body(t, rsp)
 	assert.Equal(t,
@@ -167,7 +165,7 @@ func TestAccept(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := &request.Context{}
 		c.Reset(w, req)
-		sendStatus(c, cannotValidateResponse(errors.New("error message")))
+		cannotValidateResponse(errors.New("error message")).writeTo(c)
 		rsp := w.Result()
 		got := body(t, rsp)
 		assert.Equal(t, 400, w.Code)

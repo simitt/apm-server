@@ -135,13 +135,14 @@ var (
 		},
 
 		"InvalidVersion": {
-			kbClient:               tests.MockKibana(http.StatusServiceUnavailable, m{}, *common.MustNewVersion("7.2.0"), true),
+			kbClient: tests.MockKibana(http.StatusServiceUnavailable, m{},
+				*common.MustNewVersion("7.2.0"), true),
 			method:                 http.MethodGet,
 			respStatus:             http.StatusServiceUnavailable,
 			respCacheControlHeader: "max-age=300, must-revalidate",
 			respBody:               errWrap(errMsgKibanaVersionNotCompatible),
-			respBodyToken: errWrap("min required Kibana version 7.3.0," +
-				" configured Kibana version {version:7.2.0 Major:7 Minor:2 Bugfix:0 Meta:}"),
+			respBodyToken: errWrap(fmt.Sprintf("%s: min version 7.3.0, configured version 7.2.0",
+				errMsgKibanaVersionNotCompatible)),
 		},
 
 		"NoService": {

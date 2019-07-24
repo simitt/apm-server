@@ -40,7 +40,7 @@ func TestPanicHandler(t *testing.T) {
 	}
 
 	t.Run("NoPanic", func(t *testing.T) {
-		h := func(c *request.Context) { c.WriteHeader(http.StatusAccepted) }
+		h := func(c *request.Context) { c.Write(nil, http.StatusAccepted) }
 		c := setupContext()
 		panicHandler(h)(c)
 		require.Equal(t, http.StatusAccepted, c.StatusCode())

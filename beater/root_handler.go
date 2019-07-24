@@ -41,14 +41,14 @@ func rootHandler(secretToken string) Handler {
 
 	return func(c *request.Context) {
 		if c.Req.URL.Path != "/" {
-			c.SendNotFoundErr()
+			c.Write("404 page not found", http.StatusNotFound)
 			return
 		}
 
 		if isAuthorized(c.Req, secretToken) {
-			sendStatus(c, detailedOkResponse)
+			detailedOkResponse.writeTo(c)
 			return
 		}
-		sendStatus(c, okResponse)
+		okResponse.writeTo(c)
 	}
 }

@@ -36,7 +36,7 @@ func panicHandler(h Handler) Handler {
 					err = fmt.Errorf("internal server error %+v", r)
 				}
 				c.AddStacktrace(string(debug.Stack()))
-				c.SendError(nil, fmt.Sprintf("panic handling request: %s", err.Error()), http.StatusInternalServerError)
+				c.WriteWithError(nil, fmt.Sprintf("panic handling request: %s", err.Error()), http.StatusInternalServerError)
 			}
 		}()
 		h(c)

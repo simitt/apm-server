@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -147,7 +146,7 @@ func TestRequestIntegration(t *testing.T) {
 			// Send request
 			w, err := sendReq(cfg,
 				&endpoint.route,
-				endpoint.url,
+				endpoint.url+"?verbose",
 				filepath.Join("../testdata/intake-v2/", test.path),
 				test.reportingErr)
 			require.NoError(t, err)
@@ -157,12 +156,7 @@ func TestRequestIntegration(t *testing.T) {
 			})
 
 			t.Run(testname+"Header", func(t *testing.T) {
-				assert.Equal(t, "application/json", w.Header().Get(headers.ContentType))
-				contentLength := w.Header().Get(headers.ContentLength)
-				require.NotEmpty(t, contentLength)
-				cl, err := strconv.Atoi(contentLength)
-				require.NoError(t, err)
-				assert.True(t, cl > 0)
+				assert.Equal(t, "application/json", w.Result().Header.Get(headers.ContentType))
 			})
 
 			t.Run(testname+"Body", func(t *testing.T) {
@@ -240,6 +234,7 @@ func sendReq(c *Config, route *intakeRoute, url string, p string, repErr error) 
 
 	w := httptest.NewRecorder()
 	newContextPool().handler(handler).ServeHTTP(w, req)
+	w.Flush()
 	return w, nil
 }
 

@@ -55,36 +55,33 @@ func agentConfigHandler(kbClient kibana.Client, config *agentConfig, secretToken
 	fetcher := agentcfg.NewFetcher(kbClient, config.Cache.Expiration)
 
 	var handler = func(c *request.Context) {
-		sendResp := wrap(c)
-		sendErr := wrapErr(c, secretToken)
-
-		if valid, shortMsg, detailMsg := validateKbClient(kbClient); !valid {
-			sendErr(http.StatusServiceUnavailable, shortMsg, detailMsg)
+		// error handling
+		c.Header().Set(headers.CacheControl, errCacheControl)
+		if valid, fullMsg := validateKbClient(kbClient); !valid {
+			c.WriteWithError(extractInternalError(fullMsg, secretToken))
 			return
 		}
 
-		query, requestErr := buildQuery(c.Req)
-		if requestErr != nil {
-			if strings.Contains(requestErr.Error(), errMsgMethodUnsupported) {
-				sendErr(http.StatusMethodNotAllowed, errMsgMethodUnsupported, requestErr.Error())
-				return
-			}
-			sendErr(http.StatusBadRequest, errMsgInvalidQuery, requestErr.Error())
+		query, queryErr := buildQuery(c.Req)
+		if queryErr != nil {
+			c.WriteWithError(extractQueryError(queryErr.Error(), secretToken))
 			return
 		}
 
-		cfg, upstreamEtag, internalErr := fetcher.Fetch(query, nil)
-		if internalErr != nil {
-			sendErr(http.StatusServiceUnavailable, internalErrMsg(internalErr.Error()), internalErr.Error())
+		cfg, upstreamEtag, err := fetcher.Fetch(query, nil)
+		if err != nil {
+			c.WriteWithError(extractInternalError(err.Error(), secretToken))
 			return
 		}
 
+		// configuration successfully fetched
+		c.Header().Set(headers.CacheControl, cacheControl)
 		etag := fmt.Sprintf("\"%s\"", upstreamEtag)
 		c.Header().Set(headers.Etag, etag)
 		if etag == c.Req.Header.Get(headers.IfNoneMatch) {
-			sendResp(nil, http.StatusNotModified, cacheControl)
+			c.Write(nil, http.StatusNotModified)
 		} else {
-			sendResp(cfg, http.StatusOK, cacheControl)
+			c.Write(cfg, http.StatusOK)
 		}
 	}
 
@@ -92,19 +89,20 @@ func agentConfigHandler(kbClient kibana.Client, config *agentConfig, secretToken
 		authHandler(secretToken, handler))
 }
 
-func validateKbClient(client kibana.Client) (bool, string, string) {
+func validateKbClient(client kibana.Client) (bool, string) {
 	if client == nil {
-		return false, errMsgKibanaDisabled, errMsgKibanaDisabled
+		return false, errMsgKibanaDisabled
 	}
 	if !client.Connected() {
-		return false, errMsgNoKibanaConnection, errMsgNoKibanaConnection
+		return false, errMsgNoKibanaConnection
 	}
 	if supported, _ := client.SupportsVersion(minKibanaVersion); !supported {
 		version, _ := client.GetVersion()
-		return false, errMsgKibanaVersionNotCompatible, fmt.Sprintf("min required Kibana version %+v, "+
-			"configured Kibana version %+v", minKibanaVersion, version)
+
+		return false, fmt.Sprintf("%s: min version %+v, configured version %+v",
+			errMsgKibanaVersionNotCompatible, minKibanaVersion, version.String())
 	}
-	return true, "", ""
+	return true, ""
 }
 
 // Returns (zero, error) if request body can't be unmarshalled or service.name is missing
@@ -129,40 +127,33 @@ func buildQuery(r *http.Request) (query agentcfg.Query, err error) {
 	return
 }
 
-func wrap(c *request.Context) func(interface{}, int, string) {
-	return func(body interface{}, code int, cacheControl string) {
-		c.Header().Set(headers.CacheControl, cacheControl)
-		if body == nil {
-			c.WriteHeader(code)
-			return
-		}
-		c.Send(body, code)
-	}
-}
-
-func wrapErr(c *request.Context, token string) func(int, string, string) {
-	authErrMsg := func(errMsg, logMsg string) map[string]string {
-		if token == "" {
-			return map[string]string{"error": errMsg}
-		}
-		return map[string]string{"error": logMsg}
-	}
-
-	return func(status int, errMsg, logMsg string) {
-		c.Header().Set(headers.CacheControl, errCacheControl)
-		body := authErrMsg(errMsg, logMsg)
-		c.SendError(body, logMsg, status)
-	}
-}
-
-func internalErrMsg(msg string) string {
+func extractInternalError(msg string, token string) (string, string, int) {
+	var shortMsg = errMsgServiceUnavailable
 	switch {
+	case msg == errMsgKibanaDisabled || msg == errMsgNoKibanaConnection:
+		shortMsg = msg
+	case strings.Contains(msg, errMsgKibanaVersionNotCompatible):
+		shortMsg = errMsgKibanaVersionNotCompatible
 	case strings.Contains(msg, agentcfg.ErrMsgSendToKibanaFailed):
-		return agentcfg.ErrMsgSendToKibanaFailed
+		shortMsg = agentcfg.ErrMsgSendToKibanaFailed
 	case strings.Contains(msg, agentcfg.ErrMsgMultipleChoices):
-		return agentcfg.ErrMsgMultipleChoices
+		shortMsg = agentcfg.ErrMsgMultipleChoices
 	case strings.Contains(msg, agentcfg.ErrMsgReadKibanaResponse):
-		return agentcfg.ErrMsgReadKibanaResponse
+		shortMsg = agentcfg.ErrMsgReadKibanaResponse
 	}
-	return errMsgServiceUnavailable
+	return authErrMsg(msg, shortMsg, token), msg, http.StatusServiceUnavailable
+}
+
+func extractQueryError(msg string, token string) (string, string, int) {
+	if strings.Contains(msg, errMsgMethodUnsupported) {
+		return authErrMsg(msg, errMsgMethodUnsupported, token), msg, http.StatusMethodNotAllowed
+	}
+	return authErrMsg(msg, errMsgInvalidQuery, token), msg, http.StatusBadRequest
+}
+
+func authErrMsg(fullMsg, shortMsg string, token string) string {
+	if token == "" {
+		return shortMsg
+	}
+	return fullMsg
 }

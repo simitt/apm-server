@@ -168,12 +168,12 @@ func setupContext(path string) *request.Context {
 
 func mockHandler403(c *request.Context) {
 	c.AddMonitoringCt(forbiddenCounter)
-	c.WriteHeader(http.StatusForbidden)
+	c.Write(nil, http.StatusForbidden)
 }
 
 func mockHandler202(c *request.Context) {
 	c.AddMonitoringCt(responseOk)
-	c.WriteHeader(http.StatusAccepted)
+	c.Write(nil, http.StatusAccepted)
 }
 
 func mockHandlerIdle(c *request.Context) {}

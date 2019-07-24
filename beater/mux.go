@@ -47,7 +47,7 @@ func (pool *contextPool) handler(h Handler) http.Handler {
 		defer pool.p.Put(c)
 		c.Reset(w, r)
 
-		monitoringHandler(logHandler(panicHandler(h)))(c)
+		logHandler(monitoringHandler(panicHandler(h)))(c)
 	})
 }
 

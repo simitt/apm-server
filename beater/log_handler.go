@@ -36,7 +36,7 @@ func logHandler(h Handler) Handler {
 	return func(c *request.Context) {
 		reqID, err := uuid.NewV4()
 		if err != nil {
-			sendStatus(c, internalErrorResponse(err))
+			internalErrorResponse(err).writeTo(c)
 		}
 
 		reqLogger := logger.With(
@@ -47,6 +47,7 @@ func logHandler(h Handler) Handler {
 			"remote_address", utility.RemoteAddr(c.Req),
 			"user-agent", c.Req.Header.Get(headers.UserAgent))
 
+		c.Logger = reqLogger
 		h(c)
 
 		keysAndValues := []interface{}{"response_code", c.StatusCode()}
@@ -59,6 +60,7 @@ func logHandler(h Handler) Handler {
 			return
 		}
 
+		//TODO: log body if log level is debug
 		reqLogger.Infow("handled request", keysAndValues...)
 	}
 }

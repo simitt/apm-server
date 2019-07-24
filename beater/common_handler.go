@@ -39,13 +39,6 @@ var (
 	supportedMethods = fmt.Sprintf("%s, %s", http.MethodPost, http.MethodOptions)
 )
 
-type serverResponse struct {
-	err     error
-	code    int
-	counter *monitoring.Int
-	body    map[string]interface{}
-}
-
 var (
 	serverMetrics = monitoring.Default.NewRegistry("apm-server.server", monitoring.PublishExpvar)
 	counter       = func(s string) *monitoring.Int {
@@ -140,6 +133,23 @@ var (
 	}
 )
 
+type serverResponse struct {
+	code    int
+	counter *monitoring.Int
+	err     error
+	body    interface{}
+}
+
+func (r serverResponse) writeTo(c *request.Context) {
+	if r.code >= http.StatusBadRequest || r.err != nil {
+		//TODO: remove extra handling when changing logs
+		err := map[string]string{"error": r.err.Error()}
+		c.WriteWithError(r.err.Error(), err, r.code)
+		return
+	}
+	c.Write(r.body, r.code)
+}
+
 func requestTimeHandler(h Handler) Handler {
 	return func(c *request.Context) {
 		c.Req = c.Req.WithContext(utility.ContextWithRequestTime(c.Req.Context(), time.Now()))
@@ -152,7 +162,7 @@ func killSwitchHandler(killSwitch bool, h Handler) Handler {
 		if killSwitch {
 			h(c)
 		} else {
-			sendStatus(c, forbiddenResponse(errors.New("endpoint is disabled")))
+			forbiddenResponse(errors.New("endpoint is disabled")).writeTo(c)
 		}
 	}
 }
@@ -160,7 +170,7 @@ func killSwitchHandler(killSwitch bool, h Handler) Handler {
 func authHandler(secretToken string, h Handler) Handler {
 	return func(c *request.Context) {
 		if !isAuthorized(c.Req, secretToken) {
-			sendStatus(c, unauthorizedResponse)
+			unauthorizedResponse.writeTo(c)
 			return
 		}
 		h(c)
@@ -219,7 +229,7 @@ func corsHandler(allowedOrigins []string, h Handler) Handler {
 
 			c.Header().Set(headers.ContentLength, "0")
 
-			sendStatus(c, okResponse)
+			okResponse.writeTo(c)
 
 		} else if validOrigin {
 			// we need to check the origin and set the ACAO header in both the OPTIONS preflight and the actual request
@@ -227,24 +237,7 @@ func corsHandler(allowedOrigins []string, h Handler) Handler {
 			h(c)
 
 		} else {
-			sendStatus(c, forbiddenResponse(errors.New("origin: '"+origin+"' is not allowed")))
+			forbiddenResponse(errors.New("origin: '" + origin + "' is not allowed")).writeTo(c)
 		}
 	}
-}
-
-//TODO: move to Context when reworking response handling.
-func sendStatus(c *request.Context, res serverResponse) {
-	if res.err != nil {
-		body := map[string]interface{}{"error": res.err.Error()}
-		//TODO: refactor response handling: get rid of additional `error` and just pass in error
-		c.SendError(body, body, res.code)
-		return
-	}
-
-	if res.body == nil {
-		c.WriteHeader(res.code)
-		return
-	}
-
-	c.Send(res.body, res.code)
 }
