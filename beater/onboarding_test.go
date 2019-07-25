@@ -25,13 +25,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.elastic.co/apm"
 
+	"github.com/elastic/apmreceiver/config"
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 )
 
 func TestNotifyUpServerDown(t *testing.T) {
-	config := defaultConfig("7.0.0")
+	config := config.DefaultConfig("7.0.0")
 	var saved beat.Event
 	var publisher = func(e beat.Event) { saved = e }
 

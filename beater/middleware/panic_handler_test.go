@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package middleware
 
 import (
 	"net/http"
@@ -42,7 +42,7 @@ func TestPanicHandler(t *testing.T) {
 	t.Run("NoPanic", func(t *testing.T) {
 		h := func(c *request.Context) { c.Write(nil, http.StatusAccepted) }
 		c := setupContext()
-		panicHandler(h)(c)
+		PanicHandler(h)(c)
 		require.Equal(t, http.StatusAccepted, c.StatusCode())
 		assert.Empty(t, c.Error())
 		assert.Empty(t, c.Stacktrace())
@@ -51,7 +51,7 @@ func TestPanicHandler(t *testing.T) {
 	t.Run("HandlePanic", func(t *testing.T) {
 		h := func(c *request.Context) { panic("panic xyz") }
 		c := setupContext()
-		panicHandler(h)(c)
+		PanicHandler(h)(c)
 		require.Equal(t, http.StatusInternalServerError, c.StatusCode())
 		assert.Contains(t, c.Error(), "panic xyz")
 		assert.NotNil(t, c.Stacktrace())

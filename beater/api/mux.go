@@ -15,15 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package api
 
 import (
 	"expvar"
 	"net/http"
 	"sync"
 
+	"github.com/elastic/apm-server/beater/api/root"
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/request"
-	"github.com/elastic/apm-server/kibana"
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/beats/libbeat/logp"
@@ -41,17 +42,17 @@ func newContextPool() *contextPool {
 	return &pool
 }
 
-func (pool *contextPool) handler(h Handler) http.Handler {
+func (pool *contextPool) handler(h request.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := pool.p.Get().(*request.Context)
 		defer pool.p.Put(c)
 		c.Reset(w, r)
 
-		logHandler(monitoringHandler(panicHandler(h)))(c)
+		middlewareFor(r, h)(c)
 	})
 }
 
-func newMuxer(beaterConfig *Config, report publish.Reporter) (*http.ServeMux, error) {
+func NewMuxer(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMux, error) {
 	pool := newContextPool()
 	mux := http.NewServeMux()
 	logger := logp.NewLogger(logs.Handler)
@@ -74,16 +75,12 @@ func newMuxer(beaterConfig *Config, report publish.Reporter) (*http.ServeMux, er
 		mux.Handle(path, pool.handler(handler))
 	}
 
-	var kbClient kibana.Client
-	if beaterConfig.Kibana.Enabled() {
-		kbClient = kibana.NewConnectingClient(beaterConfig.Kibana)
-	}
-	mux.Handle(agentConfigURL, pool.handler(agentConfigHandler(kbClient, beaterConfig.AgentConfig, beaterConfig.SecretToken)))
-	logger.Infof("Path %s added to request handler", agentConfigURL)
+	mux.Handle(AgentConfigURL, pool.handler(agentHandler(beaterConfig)))
+	logger.Infof("Path %s added to request handler", AgentConfigURL)
 
-	mux.Handle(rootURL, pool.handler(rootHandler(beaterConfig.SecretToken)))
+	mux.Handle(RootURL, pool.handler(root.Handler(beaterConfig.SecretToken)))
 
-	if beaterConfig.Expvar.isEnabled() {
+	if beaterConfig.Expvar.IsEnabled() {
 		path := beaterConfig.Expvar.Url
 		logger.Infof("Path %s added to request handler", path)
 		mux.Handle(path, expvar.Handler())

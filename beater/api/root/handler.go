@@ -15,27 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package root
 
 import (
+	"net/http"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/libbeat/version"
 
-	"github.com/elastic/apm-server/beater/config"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/beater/middleware"
+	"github.com/elastic/apm-server/beater/request"
 )
 
-func notifyListening(cfg *config.Config, pubFct func(beat.Event)) {
-	logp.NewLogger(logs.Onboarding).Info("Publishing onboarding document")
-	event := beat.Event{
-		Timestamp: time.Now(),
-		Fields: common.MapStr{
-			"processor": common.MapStr{"name": "onboarding", "event": "onboarding"},
-			"observer":  common.MapStr{"listening": cfg.Host},
-		},
+func Handler(token string) request.Handler {
+	serverInfo := common.MapStr{
+		"build_date": version.BuildTime().Format(time.RFC3339),
+		"build_sha":  version.Commit(),
+		"version":    version.GetDefaultVersion(),
 	}
-	pubFct(event)
+	detailedOkResponse := request.Result{
+		Code:    http.StatusOK,
+		Counter: request.ResponseOk,
+		Body:    serverInfo,
+	}
+
+	return func(c *request.Context) {
+		if c.Req.URL.Path != "/" {
+			c.Write("404 page not found", http.StatusNotFound)
+			return
+		}
+
+		if middleware.IsAuthorized(c.Req, token) {
+			detailedOkResponse.WriteTo(c)
+			return
+		}
+		request.OkResult.WriteTo(c)
+	}
 }

@@ -15,40 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package acm
 
 import (
-	"net/http"
-	"time"
-
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/version"
-
 	"github.com/elastic/apm-server/beater/request"
 )
 
-func rootHandler(secretToken string) Handler {
-	serverInfo := common.MapStr{
-		"build_date": version.BuildTime().Format(time.RFC3339),
-		"build_sha":  version.Commit(),
-		"version":    version.GetDefaultVersion(),
-	}
-	detailedOkResponse := serverResponse{
-		code:    http.StatusOK,
-		counter: responseOk,
-		body:    serverInfo,
-	}
-
+func MonitoringHandler(h request.Handler) request.Handler {
 	return func(c *request.Context) {
-		if c.Req.URL.Path != "/" {
-			c.Write("404 page not found", http.StatusNotFound)
-			return
-		}
-
-		if isAuthorized(c.Req, secretToken) {
-			detailedOkResponse.writeTo(c)
-			return
-		}
-		okResponse.writeTo(c)
+		//TODO: add monitoring counters
+		request.RequestCounter.Inc()
+		h(c)
 	}
 }

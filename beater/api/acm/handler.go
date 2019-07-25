@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package acm
 
 import (
 	"fmt"
@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/elastic/apm-server/agentcfg"
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
 	"github.com/elastic/apm-server/convert"
@@ -50,27 +51,27 @@ var (
 	errCacheControl  = fmt.Sprintf("max-age=%v, must-revalidate", errMaxAgeDuration.Seconds())
 )
 
-func agentConfigHandler(kbClient kibana.Client, config *agentConfig, secretToken string) Handler {
+func Handler(kbClient kibana.Client, config *config.AgentConfig, token string) request.Handler {
 	cacheControl := fmt.Sprintf("max-age=%v, must-revalidate", config.Cache.Expiration.Seconds())
 	fetcher := agentcfg.NewFetcher(kbClient, config.Cache.Expiration)
 
-	var handler = func(c *request.Context) {
+	return func(c *request.Context) {
 		// error handling
 		c.Header().Set(headers.CacheControl, errCacheControl)
 		if valid, fullMsg := validateKbClient(kbClient); !valid {
-			c.WriteWithError(extractInternalError(fullMsg, secretToken))
+			c.WriteWithError(extractInternalError(fullMsg, token))
 			return
 		}
 
 		query, queryErr := buildQuery(c.Req)
 		if queryErr != nil {
-			c.WriteWithError(extractQueryError(queryErr.Error(), secretToken))
+			c.WriteWithError(extractQueryError(queryErr.Error(), token))
 			return
 		}
 
 		cfg, upstreamEtag, err := fetcher.Fetch(query, nil)
 		if err != nil {
-			c.WriteWithError(extractInternalError(err.Error(), secretToken))
+			c.WriteWithError(extractInternalError(err.Error(), token))
 			return
 		}
 
@@ -84,9 +85,6 @@ func agentConfigHandler(kbClient kibana.Client, config *agentConfig, secretToken
 			c.Write(cfg, http.StatusOK)
 		}
 	}
-
-	return killSwitchHandler(kbClient != nil,
-		authHandler(secretToken, handler))
 }
 
 func validateKbClient(client kibana.Client) (bool, string) {

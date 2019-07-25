@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package intake
 
 import (
 	"testing"
@@ -34,7 +34,7 @@ func TestCacheInitFails(t *testing.T) {
 		{0, 1},
 		{1, -1},
 	} {
-		c, err := newRlCache(test.size, test.limit, 3)
+		c, err := NewRlCache(test.size, test.limit, 3)
 		assert.Error(t, err)
 		assert.Nil(t, c)
 	}
@@ -44,24 +44,24 @@ func TestCacheEviction(t *testing.T) {
 	cacheSize := 2
 	limit := 1 //multiplied times BurstMultiplier 3
 
-	rlc, err := newRlCache(cacheSize, limit, 3)
+	rlc, err := NewRlCache(cacheSize, limit, 3)
 	require.NoError(t, err)
 
 	// add new limiter
-	rl_a, _ := rlc.getRateLimiter("a")
+	rl_a, _ := rlc.GetRateLimiter("a")
 	rl_a.AllowN(time.Now(), 3)
 
 	// add new limiter
-	rl_b, _ := rlc.getRateLimiter("b")
+	rl_b, _ := rlc.GetRateLimiter("b")
 	rl_b.AllowN(time.Now(), 2)
 
 	// reuse evicted limiter rl_a
-	rl_c, _ := rlc.getRateLimiter("c")
+	rl_c, _ := rlc.GetRateLimiter("c")
 	assert.False(t, rl_c.Allow())
 	assert.Equal(t, rl_c, rlc.evictedLimiter)
 
 	// reuse evicted limiter rl_b
-	rl_d, _ := rlc.getRateLimiter("a")
+	rl_d, _ := rlc.GetRateLimiter("a")
 	assert.True(t, rl_d.Allow())
 	assert.False(t, rl_d.Allow())
 	assert.Equal(t, rl_d, rlc.evictedLimiter)
@@ -73,27 +73,27 @@ func TestCacheEviction(t *testing.T) {
 }
 
 func TestCacheOk(t *testing.T) {
-	var rlc *rlCache
-	_, ok := rlc.getRateLimiter("a")
+	var rlc *RlCache
+	_, ok := rlc.GetRateLimiter("a")
 	assert.False(t, ok)
 
-	var cache = func() *rlCache {
-		rlc, err := newRlCache(1, 1, 1)
+	var cache = func() *RlCache {
+		rlc, err := NewRlCache(1, 1, 1)
 		require.NoError(t, err)
 		return rlc
 	}
 
 	rlc = cache()
 	rlc.limit = -1
-	_, ok = rlc.getRateLimiter("a")
+	_, ok = rlc.GetRateLimiter("a")
 	assert.False(t, ok)
 
 	rlc = cache()
 	rlc.cache = nil
-	_, ok = rlc.getRateLimiter("a")
+	_, ok = rlc.GetRateLimiter("a")
 	assert.False(t, ok)
 
 	rlc = cache()
-	_, ok = rlc.getRateLimiter("a")
+	_, ok = rlc.GetRateLimiter("a")
 	assert.True(t, ok)
 }

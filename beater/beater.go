@@ -38,6 +38,7 @@ import (
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/outputs/elasticsearch"
 
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/ingest/pipeline"
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/pipelistener"
@@ -49,7 +50,7 @@ func init() {
 }
 
 type beater struct {
-	config  *Config
+	config  *config.Config
 	mutex   sync.Mutex // guards server and stopped
 	server  *http.Server
 	stopped bool
@@ -90,16 +91,16 @@ func New(b *beat.Beat, ucfg *common.Config) (beat.Beater, error) {
 	if err := checkConfig(logger); err != nil {
 		return nil, err
 	}
-	beaterConfig, err := newConfig(b.Info.Version, ucfg)
+	beaterConfig, err := config.NewConfig(b.Info.Version, ucfg)
 	if err != nil {
 		return nil, err
 	}
-	if beaterConfig.RumConfig.isEnabled() {
+	if beaterConfig.RumConfig.IsEnabled() {
 		if b.Config != nil && beaterConfig.RumConfig.SourceMapping.EsConfig == nil {
 			// fall back to elasticsearch output configuration for sourcemap storage if possible
 			if isElasticsearchOutput(b) {
 				logger.Info("Falling back to elasticsearch output for sourcemap storage")
-				beaterConfig.setSmapElasticsearch(b.Config.Output.Config())
+				beaterConfig.SetSmapElasticsearch(b.Config.Output.Config())
 			} else {
 				logger.Info("Unable to determine sourcemap storage, sourcemaps will not be applied")
 			}
@@ -107,7 +108,7 @@ func New(b *beat.Beat, ucfg *common.Config) (beat.Beater, error) {
 	}
 	if isElasticsearchOutput(b) &&
 		(b.Config.Output.Config().HasField("pipeline") || b.Config.Output.Config().HasField("pipelines")) {
-		beaterConfig.pipeline = ""
+		beaterConfig.Pipeline = ""
 	}
 
 	bt := &beater{
@@ -117,7 +118,7 @@ func New(b *beat.Beat, ucfg *common.Config) (beat.Beater, error) {
 	}
 
 	// setup pipelines if explicitly directed to or setup --pipelines and config is not set at all
-	shouldSetupPipelines := beaterConfig.Register.Ingest.Pipeline.isEnabled() ||
+	shouldSetupPipelines := beaterConfig.Register.Ingest.Pipeline.IsEnabled() ||
 		(b.InSetupCmd && beaterConfig.Register.Ingest.Pipeline.Enabled == nil)
 	if isElasticsearchOutput(b) && shouldSetupPipelines {
 		logger.Info("Registering pipeline callback")
@@ -150,7 +151,7 @@ func (bt *beater) listen() (net.Listener, error) {
 		if _, _, err := net.SplitHostPort(path); err != nil {
 			// tack on a port if SplitHostPort fails on what should be a tcp network address
 			// if there were already too many colons, one more won't hurt
-			path = net.JoinHostPort(path, DefaultPort)
+			path = net.JoinHostPort(path, config.DefaultPort)
 		}
 	}
 	lis, err := net.Listen(network, path)
@@ -179,7 +180,7 @@ func (bt *beater) Run(b *beat.Beat) error {
 	defer tracer.Close()
 
 	pub, err := publish.NewPublisher(b.Publisher, tracer, &publish.PublisherConfig{
-		Info: b.Info, ShutdownTimeout: bt.config.ShutdownTimeout, Pipeline: bt.config.pipeline,
+		Info: b.Info, ShutdownTimeout: bt.config.ShutdownTimeout, Pipeline: bt.config.Pipeline,
 	})
 	if err != nil {
 		return err
@@ -252,8 +253,8 @@ func (bt *beater) isServerAvailable(timeout time.Duration) bool {
 
 // initTracer configures and returns an apm.Tracer for tracing
 // the APM server's own execution.
-func initTracer(info beat.Info, config *Config, logger *logp.Logger) (*apm.Tracer, net.Listener, error) {
-	if !config.SelfInstrumentation.isEnabled() {
+func initTracer(info beat.Info, config *config.Config, logger *logp.Logger) (*apm.Tracer, net.Listener, error) {
+	if !config.SelfInstrumentation.IsEnabled() {
 		os.Setenv("ELASTIC_APM_ACTIVE", "false")
 		logger.Infof("self instrumentation is disabled")
 	} else {
@@ -266,7 +267,7 @@ func initTracer(info beat.Info, config *Config, logger *logp.Logger) (*apm.Trace
 		return nil, nil, err
 	}
 	// tracing disabled, setup complete
-	if !config.SelfInstrumentation.isEnabled() {
+	if !config.SelfInstrumentation.IsEnabled() {
 		return tracer, nil, nil
 	}
 
@@ -318,7 +319,7 @@ func isElasticsearchOutput(b *beat.Beat) bool {
 }
 
 func (bt *beater) registerPipelineCallback(b *beat.Beat) error {
-	overwrite := bt.config.Register.Ingest.Pipeline.shouldOverwrite()
+	overwrite := bt.config.Register.Ingest.Pipeline.ShouldOverwrite()
 	path := bt.config.Register.Ingest.Pipeline.Path
 
 	// ensure setup cmd is working properly

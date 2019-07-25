@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package intake
 
 import (
 	"fmt"
@@ -25,23 +25,27 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/elastic/beats/libbeat/monitoring"
-
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
 	"github.com/elastic/apm-server/decoder"
 	"github.com/elastic/apm-server/processor/stream"
 	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/apm-server/utility"
+	"github.com/elastic/beats/libbeat/monitoring"
 )
 
-type intakeHandler struct {
+type Handler struct {
 	requestDecoder  decoder.ReqDecoder
 	streamProcessor *stream.Processor
-	rlc             *rlCache
+	rlc             *RlCache
 }
 
-func (v *intakeHandler) Handle(beaterConfig *Config, report publish.Reporter) Handler {
+func NewHandler(dec decoder.ReqDecoder, processor *stream.Processor, rlc *RlCache) *Handler {
+	return &Handler{requestDecoder: dec, streamProcessor: processor, rlc: rlc}
+}
+
+func (v *Handler) Handle(beaterConfig *config.Config, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
 		serr := v.validateRequest(c.Req)
 		if serr != nil {
@@ -75,9 +79,9 @@ func (v *intakeHandler) Handle(beaterConfig *Config, report publish.Reporter) Ha
 	}
 }
 
-func (v *intakeHandler) extractResult(sr *stream.Result) (int, *monitoring.Int) {
+func (v *Handler) extractResult(sr *stream.Result) (int, *monitoring.Int) {
 	var code = http.StatusAccepted
-	var monInt = responseAccepted
+	var monInt = request.ResponseAccepted
 	set := func(c int, i *monitoring.Int) {
 		if c > code {
 			code = c
@@ -88,25 +92,25 @@ func (v *intakeHandler) extractResult(sr *stream.Result) (int, *monitoring.Int) 
 	for _, err := range sr.Errors {
 		switch err.Type {
 		case stream.MethodForbiddenErrType:
-			set(http.StatusBadRequest, methodNotAllowedCounter)
+			set(http.StatusBadRequest, request.MethodNotAllowedCounter)
 		case stream.InputTooLargeErrType:
-			set(http.StatusBadRequest, requestTooLargeCounter)
+			set(http.StatusBadRequest, request.RequestTooLargeCounter)
 		case stream.InvalidInputErrType:
-			set(http.StatusBadRequest, validateCounter)
+			set(http.StatusBadRequest, request.ValidateCounter)
 		case stream.RateLimitErrType:
-			set(http.StatusTooManyRequests, rateLimitCounter)
+			set(http.StatusTooManyRequests, request.RateLimitCounter)
 		case stream.QueueFullErrType:
-			return http.StatusServiceUnavailable, fullQueueCounter
+			return http.StatusServiceUnavailable, request.FullQueueCounter
 		case stream.ShuttingDownErrType:
-			return http.StatusServiceUnavailable, serverShuttingDownCounter
+			return http.StatusServiceUnavailable, request.ServerShuttingDownCounter
 		default:
-			set(http.StatusInternalServerError, internalErrorCounter)
+			set(http.StatusInternalServerError, request.InternalErrorCounter)
 		}
 	}
 	return code, monInt
 }
 
-func (v *intakeHandler) sendResponse(c *request.Context, sr *stream.Result) {
+func (v *Handler) sendResponse(c *request.Context, sr *stream.Result) {
 	statusCode, monitoringInt := v.extractResult(sr)
 	c.AddMonitoringCt(monitoringInt)
 
@@ -127,13 +131,13 @@ func (v *intakeHandler) sendResponse(c *request.Context, sr *stream.Result) {
 	c.Write(nil, statusCode)
 }
 
-func (v *intakeHandler) sendError(c *request.Context, err *stream.Error) {
+func (v *Handler) sendError(c *request.Context, err *stream.Error) {
 	sr := stream.Result{}
 	sr.Add(err)
 	v.sendResponse(c, &sr)
 }
 
-func (v *intakeHandler) validateRequest(r *http.Request) *stream.Error {
+func (v *Handler) validateRequest(r *http.Request) *stream.Error {
 	if r.Method != http.MethodPost {
 		return &stream.Error{
 			Type:    stream.MethodForbiddenErrType,
@@ -150,8 +154,8 @@ func (v *intakeHandler) validateRequest(r *http.Request) *stream.Error {
 	return nil
 }
 
-func (v *intakeHandler) rateLimit(r *http.Request) (*rate.Limiter, *stream.Error) {
-	if rl, ok := v.rlc.getRateLimiter(utility.RemoteAddr(r)); ok {
+func (v *Handler) rateLimit(r *http.Request) (*rate.Limiter, *stream.Error) {
+	if rl, ok := v.rlc.GetRateLimiter(utility.RemoteAddr(r)); ok {
 		if !rl.Allow() {
 			return nil, &stream.Error{
 				Type:    stream.RateLimitErrType,
@@ -163,7 +167,7 @@ func (v *intakeHandler) rateLimit(r *http.Request) (*rate.Limiter, *stream.Error
 	return nil, nil
 }
 
-func (v *intakeHandler) bodyReader(r *http.Request) (io.ReadCloser, *stream.Error) {
+func (v *Handler) bodyReader(r *http.Request) (io.ReadCloser, *stream.Error) {
 	reader, err := decoder.CompressedRequestReader(r)
 	if err != nil {
 		return nil, &stream.Error{

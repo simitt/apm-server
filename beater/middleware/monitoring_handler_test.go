@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package middleware
 
 import (
 	"fmt"
@@ -35,19 +35,19 @@ func TestMonitoringHandler_ACM(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/config/v1/agents?service.name=xyz")
-		monitoringHandler(mockHandler403)(c)
+		MonitoringHandler(mockHandler403)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1})
 	})
 	t.Run("Accepted", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/config/v1/agents")
-		monitoringHandler(mockHandler202)(c)
+		MonitoringHandler(mockHandler202)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1})
 	})
 	t.Run("Idle", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/config/v1/agents/")
-		monitoringHandler(mockHandlerIdle)(c)
+		MonitoringHandler(mockHandlerIdle)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1})
 	})
 }
@@ -55,21 +55,21 @@ func TestMonitoringHandler_IntakeBackend(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/intake/v2/events")
-		monitoringHandler(mockHandler403)(c)
+		MonitoringHandler(mockHandler403)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseErrors: 1, forbiddenCounter: 1})
 	})
 	t.Run("Accepted", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/intake/v2/events/")
-		monitoringHandler(mockHandler202)(c)
+		MonitoringHandler(mockHandler202)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1, responseOk: 1})
 	})
 	t.Run("Idle", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/intake/v2/events")
-		monitoringHandler(mockHandlerIdle)(c)
+		MonitoringHandler(mockHandlerIdle)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1})
 	})
@@ -79,21 +79,21 @@ func TestMonitoringHandler_IntakeRUM(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/intake/v2/rum/events")
-		monitoringHandler(mockHandler403)(c)
+		MonitoringHandler(mockHandler403)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseErrors: 1, forbiddenCounter: 1})
 	})
 	t.Run("Accepted", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/intake/v2/rum/events/")
-		monitoringHandler(mockHandler202)(c)
+		MonitoringHandler(mockHandler202)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1, responseOk: 1})
 	})
 	t.Run("Idle", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/intake/v2/rum/events")
-		monitoringHandler(mockHandlerIdle)(c)
+		MonitoringHandler(mockHandlerIdle)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1})
 	})
@@ -103,21 +103,21 @@ func TestMonitoringHandler_Root(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/")
-		monitoringHandler(mockHandler403)(c)
+		MonitoringHandler(mockHandler403)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseErrors: 1, forbiddenCounter: 1})
 	})
 	t.Run("Accepted", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/")
-		monitoringHandler(mockHandler202)(c)
+		MonitoringHandler(mockHandler202)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1, responseOk: 1})
 	})
 	t.Run("Idle", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/")
-		monitoringHandler(mockHandlerIdle)(c)
+		MonitoringHandler(mockHandlerIdle)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1})
 	})
@@ -127,21 +127,21 @@ func TestMonitoringHandler_Asset(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/assets/v1/sourcemaps/")
-		monitoringHandler(mockHandler403)(c)
+		MonitoringHandler(mockHandler403)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseErrors: 1, forbiddenCounter: 1})
 	})
 	t.Run("Accepted", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/assets/v1/sourcemaps")
-		monitoringHandler(mockHandler202)(c)
+		MonitoringHandler(mockHandler202)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1, responseOk: 1})
 	})
 	t.Run("Idle", func(t *testing.T) {
 		testResetCounter()
 		c := setupContext("/assets/v1/sourcemaps")
-		monitoringHandler(mockHandlerIdle)(c)
+		MonitoringHandler(mockHandlerIdle)(c)
 		testCounter(t, map[*monitoring.Int]int64{requestCounter: 1,
 			responseCounter: 1, responseSuccesses: 1})
 	})

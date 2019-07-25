@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package middleware
 
 import (
 	"net/http"
@@ -30,13 +30,13 @@ import (
 	"github.com/elastic/apm-server/utility"
 )
 
-func logHandler(h Handler) Handler {
+func LogHandler(h request.Handler) request.Handler {
 	logger := logp.NewLogger(logs.Request)
 
 	return func(c *request.Context) {
 		reqID, err := uuid.NewV4()
 		if err != nil {
-			internalErrorResponse(err).writeTo(c)
+			request.InternalErrorResult(err).WriteTo(c)
 		}
 
 		reqLogger := logger.With(

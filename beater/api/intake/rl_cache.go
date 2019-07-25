@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package intake
 
 import (
 	"sync"
@@ -25,7 +25,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// The rlCache is a simple lru cache holding N=size rate limiter entities. Every
+// The RlCache is a simple lru cache holding N=size rate limiter entities. Every
 // rate limiter entity allows N=rateLimit hits per key (=IP) per second, and has a
 // burst queue of limit*5.
 // As the used lru cache is of a fixed size, cache entries can get evicted, in
@@ -34,7 +34,7 @@ import (
 // cache is full. The purpose is to avoid bypassing the rate limiting by sending
 // requests from cache_size*2 unique keys, which would lead to evicted keys and
 // the creation of new rate limiter entities with full allowance.
-type rlCache struct {
+type RlCache struct {
 	cache          *simplelru.LRU
 	limit          int
 	burstFactor    int
@@ -42,12 +42,12 @@ type rlCache struct {
 	evictedLimiter *rate.Limiter
 }
 
-func newRlCache(size, rateLimit, burstFactor int) (*rlCache, error) {
+func NewRlCache(size, rateLimit, burstFactor int) (*RlCache, error) {
 	if size <= 0 || rateLimit < 0 {
 		return nil, errors.New("cache initialization: size and rateLimit must be greater than zero")
 	}
 
-	rlc := rlCache{limit: rateLimit, burstFactor: burstFactor}
+	rlc := RlCache{limit: rateLimit, burstFactor: burstFactor}
 
 	var onEvicted = func(_ interface{}, value interface{}) {
 		rlc.evictedLimiter = *value.(**rate.Limiter)
@@ -61,7 +61,7 @@ func newRlCache(size, rateLimit, burstFactor int) (*rlCache, error) {
 	return &rlc, nil
 }
 
-func (rlc *rlCache) getRateLimiter(key string) (*rate.Limiter, bool) {
+func (rlc *RlCache) GetRateLimiter(key string) (*rate.Limiter, bool) {
 	// fetch the rate limiter from the cache, if a cache is given
 	if rlc == nil || rlc.cache == nil || rlc.limit == -1 {
 		return nil, false

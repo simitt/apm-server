@@ -26,14 +26,16 @@ import (
 	"go.elastic.co/apm/module/apmhttp"
 	"golang.org/x/net/netutil"
 
+	"github.com/elastic/apm-server/beater/api"
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/beats/libbeat/common/transport/tlscommon"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/version"
 )
 
-func newServer(config *Config, tracer *apm.Tracer, report publish.Reporter) (*http.Server, error) {
-	mux, err := newMuxer(config, report)
+func newServer(config *config.Config, tracer *apm.Tracer, report publish.Reporter) (*http.Server, error) {
+	mux, err := api.NewMuxer(config, report)
 	if err != nil {
 		return nil, err
 	}
@@ -66,17 +68,17 @@ func doNotTrace(req *http.Request) bool {
 		// or we will go into a continuous cycle.
 		return true
 	}
-	if req.URL.Path == rootURL {
+	if req.URL.Path == api.RootURL {
 		// Don't trace root url (healthcheck) requests.
 		return true
 	}
 	return false
 }
 
-func run(logger *logp.Logger, server *http.Server, lis net.Listener, config *Config) error {
+func run(logger *logp.Logger, server *http.Server, lis net.Listener, config *config.Config) error {
 	logger.Infof("Starting apm-server [%s built %s]. Hit CTRL-C to stop it.", version.Commit(), version.BuildTime())
 	logger.Infof("Listening on: %s", server.Addr)
-	switch config.RumConfig.isEnabled() {
+	switch config.RumConfig.IsEnabled() {
 	case true:
 		logger.Info("RUM endpoints enabled!")
 	case false:

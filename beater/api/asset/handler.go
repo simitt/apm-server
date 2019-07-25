@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package asset
 
 import (
 	"net/http"
@@ -23,6 +23,7 @@ import (
 
 	"go.elastic.co/apm"
 
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/request"
 	"github.com/elastic/apm-server/decoder"
 	"github.com/elastic/apm-server/processor/asset"
@@ -31,38 +32,42 @@ import (
 	"github.com/elastic/apm-server/utility"
 )
 
-type assetHandler struct {
+type Handler struct {
 	requestDecoder decoder.ReqDecoder
 	processor      asset.Processor
 	tconfig        transform.Config
 }
 
-func (h *assetHandler) Handle(beaterConfig *Config, report publish.Reporter) Handler {
+func NewHandler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Config) *Handler {
+	return &Handler{requestDecoder: dec, processor: processor, tconfig: cfg}
+}
+
+func (h *Handler) Handle(beaterConfig *config.Config, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
-		h.processRequest(c.Req, report).writeTo(c)
+		h.processRequest(c.Req, report).WriteTo(c)
 	}
 }
 
-func (h *assetHandler) processRequest(r *http.Request, report publish.Reporter) serverResponse {
+func (h *Handler) processRequest(r *http.Request, report publish.Reporter) request.Result {
 	if r.Method != "POST" {
-		return methodNotAllowedResponse
+		return request.MethodNotAllowedResult
 	}
 
 	data, err := h.requestDecoder(r)
 	if err != nil {
 		if strings.Contains(err.Error(), "request body too large") {
-			return requestTooLargeResponse
+			return request.RequestTooLargeResult
 		}
-		return cannotDecodeResponse(err)
+		return request.CannotDecodeResult(err)
 	}
 
 	if err = h.processor.Validate(data); err != nil {
-		return cannotValidateResponse(err)
+		return request.CannotValidateResult(err)
 	}
 
 	metadata, transformables, err := h.processor.Decode(data)
 	if err != nil {
-		return cannotDecodeResponse(err)
+		return request.CannotDecodeResult(err)
 	}
 
 	tctx := &transform.Context{
@@ -79,10 +84,10 @@ func (h *assetHandler) processRequest(r *http.Request, report publish.Reporter) 
 
 	if err = report(ctx, req); err != nil {
 		if err == publish.ErrChannelClosed {
-			return serverShuttingDownResponse(err)
+			return request.ServerShuttingDownResult(err)
 		}
-		return fullQueueResponse(err)
+		return request.FullQueueResult(err)
 	}
 
-	return acceptedResponse
+	return request.AcceptedResult
 }

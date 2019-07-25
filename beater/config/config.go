@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package config
 
 import (
 	"fmt"
@@ -56,13 +56,13 @@ type Config struct {
 	Expvar              *ExpvarConfig           `config:"expvar"`
 	AugmentEnabled      bool                    `config:"capture_personal_data"`
 	SelfInstrumentation *InstrumentationConfig  `config:"instrumentation"`
-	RumConfig           *rumConfig              `config:"rum"`
-	Register            *registerConfig         `config:"register"`
+	RumConfig           *RumConfig              `config:"rum"`
+	Register            *RegisterConfig         `config:"register"`
 	Mode                Mode                    `config:"mode"`
 	Kibana              *common.Config          `config:"kibana"`
-	AgentConfig         *agentConfig            `config:"agent.config"`
+	AgentConfig         *AgentConfig            `config:"agent.config"`
 
-	pipeline string
+	Pipeline string
 }
 
 type ExpvarConfig struct {
@@ -70,9 +70,9 @@ type ExpvarConfig struct {
 	Url     string `config:"url"`
 }
 
-type rumConfig struct {
+type RumConfig struct {
 	Enabled             *bool          `config:"enabled"`
-	EventRate           *eventRate     `config:"event_rate"`
+	EventRate           *EventRate     `config:"event_rate"`
 	AllowOrigins        []string       `config:"allow_origins"`
 	LibraryPattern      string         `config:"library_pattern"`
 	ExcludeFromGrouping string         `config:"exclude_from_grouping"`
@@ -81,26 +81,26 @@ type rumConfig struct {
 	beatVersion string
 }
 
-type eventRate struct {
+type EventRate struct {
 	Limit   int `config:"limit"`
 	LruSize int `config:"lru_size"`
 }
 
-type registerConfig struct {
-	Ingest *ingestConfig `config:"ingest"`
+type RegisterConfig struct {
+	Ingest *IngestConfig `config:"ingest"`
 }
 
-type ingestConfig struct {
-	Pipeline *pipelineConfig `config:"pipeline"`
+type IngestConfig struct {
+	Pipeline *PipelineConfig `config:"pipeline"`
 }
 
-type pipelineConfig struct {
+type PipelineConfig struct {
 	Enabled   *bool `config:"enabled"`
 	Overwrite *bool `config:"overwrite"`
 	Path      string
 }
 
-type agentConfig struct {
+type AgentConfig struct {
 	Cache *Cache `config:"cache"`
 }
 
@@ -141,8 +141,8 @@ func (m *Mode) Unpack(s string) error {
 	return nil
 }
 
-func newConfig(version string, ucfg *common.Config) (*Config, error) {
-	c := defaultConfig(version)
+func NewConfig(version string, ucfg *common.Config) (*Config, error) {
+	c := DefaultConfig(version)
 
 	if ucfg.HasField("ssl") {
 		ssl, err := ucfg.Child("ssl", -1)
@@ -163,7 +163,7 @@ func newConfig(version string, ucfg *common.Config) (*Config, error) {
 	if float64(int(c.AgentConfig.Cache.Expiration.Seconds())) != c.AgentConfig.Cache.Expiration.Seconds() {
 		return nil, errors.New(errMsgInvalidACMCfg)
 	}
-	if c.RumConfig.isEnabled() {
+	if c.RumConfig.IsEnabled() {
 		if _, err := regexp.Compile(c.RumConfig.LibraryPattern); err != nil {
 			return nil, errors.New(fmt.Sprintf("Invalid regex for `library_pattern`: %v", err.Error()))
 		}
@@ -175,38 +175,38 @@ func newConfig(version string, ucfg *common.Config) (*Config, error) {
 	return c, nil
 }
 
-func (c *Config) setSmapElasticsearch(esConfig *common.Config) {
-	if c != nil && c.RumConfig.isEnabled() && c.RumConfig.SourceMapping != nil {
+func (c *Config) SetSmapElasticsearch(esConfig *common.Config) {
+	if c != nil && c.RumConfig.IsEnabled() && c.RumConfig.SourceMapping != nil {
 		c.RumConfig.SourceMapping.EsConfig = esConfig
 	}
 }
 
-func (c *ExpvarConfig) isEnabled() bool {
+func (c *ExpvarConfig) IsEnabled() bool {
 	return c != nil && (c.Enabled == nil || *c.Enabled)
 }
 
-func (c *rumConfig) isEnabled() bool {
+func (c *RumConfig) IsEnabled() bool {
 	return c != nil && (c.Enabled != nil && *c.Enabled)
 }
 
-func (s *SourceMapping) isEnabled() bool {
+func (s *SourceMapping) IsEnabled() bool {
 	return s == nil || s.Enabled == nil || *s.Enabled
 }
 
-func (s *SourceMapping) isSetup() bool {
+func (s *SourceMapping) IsSetup() bool {
 	return s != nil && (s.EsConfig != nil)
 }
 
-func (c *pipelineConfig) isEnabled() bool {
+func (c *PipelineConfig) IsEnabled() bool {
 	return c != nil && (c.Enabled == nil || *c.Enabled)
 }
 
-func (c *pipelineConfig) shouldOverwrite() bool {
+func (c *PipelineConfig) ShouldOverwrite() bool {
 	return c != nil && (c.Overwrite != nil && *c.Overwrite)
 }
 
-func (c *rumConfig) memoizedSmapMapper() (sourcemap.Mapper, error) {
-	if !c.isEnabled() || !c.SourceMapping.isEnabled() || !c.SourceMapping.isSetup() {
+func (c *RumConfig) MemoizedSmapMapper() (sourcemap.Mapper, error) {
+	if !c.IsEnabled() || !c.SourceMapping.IsEnabled() || !c.SourceMapping.IsSetup() {
 		return nil, nil
 	}
 	if c.SourceMapping.mapper != nil {
@@ -226,7 +226,7 @@ func (c *rumConfig) memoizedSmapMapper() (sourcemap.Mapper, error) {
 	return c.SourceMapping.mapper, nil
 }
 
-func (c *InstrumentationConfig) isEnabled() bool {
+func (c *InstrumentationConfig) IsEnabled() bool {
 	// self instrumentation is disabled by default.
 	return c != nil && c.Enabled != nil && *c.Enabled
 }
@@ -236,9 +236,9 @@ func replaceVersion(pattern, version string) string {
 	return re.ReplaceAllLiteralString(pattern, version)
 }
 
-func defaultRum(beatVersion string) *rumConfig {
-	return &rumConfig{
-		EventRate: &eventRate{
+func defaultRum(beatVersion string) *RumConfig {
+	return &RumConfig{
+		EventRate: &EventRate{
 			Limit:   300,
 			LruSize: 1000,
 		},
@@ -255,7 +255,7 @@ func defaultRum(beatVersion string) *rumConfig {
 	}
 }
 
-func defaultConfig(beatVersion string) *Config {
+func DefaultConfig(beatVersion string) *Config {
 	pipeline := true
 	return &Config{
 		Host:            net.JoinHostPort("localhost", DefaultPort),
@@ -272,8 +272,8 @@ func defaultConfig(beatVersion string) *Config {
 			Enabled: new(bool),
 			Url:     "/debug/vars",
 		},
-		RumConfig: &rumConfig{
-			EventRate: &eventRate{
+		RumConfig: &RumConfig{
+			EventRate: &EventRate{
 				Limit:   300,
 				LruSize: 1000,
 			},
@@ -288,9 +288,9 @@ func defaultConfig(beatVersion string) *Config {
 			ExcludeFromGrouping: "^/webpack",
 			beatVersion:         beatVersion,
 		},
-		Register: &registerConfig{
-			Ingest: &ingestConfig{
-				Pipeline: &pipelineConfig{
+		Register: &RegisterConfig{
+			Ingest: &IngestConfig{
+				Pipeline: &PipelineConfig{
 					Enabled: &pipeline,
 					Path: paths.Resolve(paths.Home,
 						filepath.Join("ingest", "pipeline", "definition.json")),
@@ -298,7 +298,7 @@ func defaultConfig(beatVersion string) *Config {
 		},
 		Mode:        ModeProduction,
 		Kibana:      common.MustNewConfigFrom(map[string]interface{}{"enabled": "false"}),
-		AgentConfig: &agentConfig{Cache: &Cache{Expiration: 30 * time.Second}},
-		pipeline:    defaultAPMPipeline,
+		AgentConfig: &AgentConfig{Cache: &Cache{Expiration: 30 * time.Second}},
+		Pipeline:    defaultAPMPipeline,
 	}
 }

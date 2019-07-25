@@ -15,30 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package request
 
-import (
-	"fmt"
-	"net/http"
-	"runtime/debug"
-
-	"github.com/elastic/apm-server/beater/request"
-)
-
-func panicHandler(h Handler) Handler {
-	return func(c *request.Context) {
-
-		defer func() {
-			if r := recover(); r != nil {
-				var ok bool
-				var err error
-				if err, ok = r.(error); !ok {
-					err = fmt.Errorf("internal server error %+v", r)
-				}
-				c.AddStacktrace(string(debug.Stack()))
-				c.WriteWithError(nil, fmt.Sprintf("panic handling request: %s", err.Error()), http.StatusInternalServerError)
-			}
-		}()
-		h(c)
-	}
-}
+// Handler specifies the handler type that is implemented by middleware and apm handlers
+type Handler func(c *Context)

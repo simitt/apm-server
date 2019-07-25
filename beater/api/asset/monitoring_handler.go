@@ -15,27 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package asset
 
 import (
-	"time"
+	"net/http"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-
-	"github.com/elastic/apm-server/beater/config"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/beater/request"
 )
 
-func notifyListening(cfg *config.Config, pubFct func(beat.Event)) {
-	logp.NewLogger(logs.Onboarding).Info("Publishing onboarding document")
-	event := beat.Event{
-		Timestamp: time.Now(),
-		Fields: common.MapStr{
-			"processor": common.MapStr{"name": "onboarding", "event": "onboarding"},
-			"observer":  common.MapStr{"listening": cfg.Host},
-		},
+func MonitoringHandler(h request.Handler) request.Handler {
+	return func(c *request.Context) {
+		h(c)
+		//TODO: use extra monitoring counters for rootHandler and assetHandler
+		request.RequestCounter.Inc()
+		request.ResponseCounter.Inc()
+		if c.StatusCode() >= http.StatusBadRequest {
+			request.ResponseErrors.Inc()
+		} else {
+			request.ResponseSuccesses.Inc()
+		}
+
+		for _, ct := range c.MonitoringCounts() {
+			ct.Inc()
+		}
 	}
-	pubFct(event)
 }

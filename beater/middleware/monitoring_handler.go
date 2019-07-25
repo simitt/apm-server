@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package beater
+package middleware
 
 import (
-	"net/http"
-	"strings"
-
 	"github.com/elastic/apm-server/beater/request"
 )
 
@@ -28,27 +25,27 @@ const (
 	slash = "/"
 )
 
-func monitoringHandler(h Handler) Handler {
+func MonitoringHandler(h request.Handler) request.Handler {
 	return func(c *request.Context) {
 		h(c)
 
-		switch strings.TrimSuffix(c.Req.URL.Path, slash) {
-		case agentConfigURL:
-			// do not monitor yet
-			requestCounter.Inc()
-		default:
-			//TODO: use extra monitoring counters for rootHandler and assetHandler
-			requestCounter.Inc()
-			responseCounter.Inc()
-			if c.StatusCode() >= http.StatusBadRequest {
-				responseErrors.Inc()
-			} else {
-				responseSuccesses.Inc()
-			}
-
-			for _, ct := range c.MonitoringCounts() {
-				ct.Inc()
-			}
-		}
+		//switch strings.TrimSuffix(c.Req.URL.Path, slash) {
+		//case agentConfigURL:
+		//	// do not monitor yet
+		//	requestCounter.Inc()
+		//default:
+		//	//TODO: use extra monitoring counters for rootHandler and assetHandler
+		//	requestCounter.Inc()
+		//	responseCounter.Inc()
+		//	if c.StatusCode() >= http.StatusBadRequest {
+		//		responseErrors.Inc()
+		//	} else {
+		//		responseSuccesses.Inc()
+		//	}
+		//
+		//	for _, ct := range c.MonitoringCounts() {
+		//		ct.Inc()
+		//	}
+		//}
 	}
 }
