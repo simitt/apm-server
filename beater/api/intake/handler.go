@@ -25,61 +25,51 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/elastic/apm-server/beater/config"
+	"github.com/elastic/beats/libbeat/monitoring"
+
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
 	"github.com/elastic/apm-server/decoder"
 	"github.com/elastic/apm-server/processor/stream"
 	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/apm-server/utility"
-	"github.com/elastic/beats/libbeat/monitoring"
 )
 
-type Handler struct {
-	requestDecoder  decoder.ReqDecoder
-	streamProcessor *stream.Processor
-	rlc             *RlCache
-}
-
-func NewHandler(dec decoder.ReqDecoder, processor *stream.Processor, rlc *RlCache) *Handler {
-	return &Handler{requestDecoder: dec, streamProcessor: processor, rlc: rlc}
-}
-
-func (v *Handler) Handle(beaterConfig *config.Config, report publish.Reporter) request.Handler {
+func NewHandler(dec decoder.ReqDecoder, processor *stream.Processor, rlc *RateLimitCache, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
-		serr := v.validateRequest(c.Req)
+		serr := validateRequest(c.Req)
 		if serr != nil {
-			v.sendError(c, serr)
+			sendError(c, serr)
 			return
 		}
 
-		rl, serr := v.rateLimit(c.Req)
+		rl, serr := rateLimit(c.Req, rlc)
 		if serr != nil {
-			v.sendError(c, serr)
+			sendError(c, serr)
 			return
 		}
 
-		reader, serr := v.bodyReader(c.Req)
+		reader, serr := bodyReader(c.Req)
 		if serr != nil {
-			v.sendError(c, serr)
+			sendError(c, serr)
 			return
 		}
 
 		// extract metadata information from the request, like user-agent or remote address
-		reqMeta, err := v.requestDecoder(c.Req)
+		reqMeta, err := dec(c.Req)
 		if err != nil {
 			sr := stream.Result{}
 			sr.Add(err)
-			v.sendResponse(c, &sr)
+			sendResponse(c, &sr)
 			return
 		}
-		res := v.streamProcessor.HandleStream(c.Req.Context(), rl, reqMeta, reader, report)
+		res := processor.HandleStream(c.Req.Context(), rl, reqMeta, reader, report)
 
-		v.sendResponse(c, res)
+		sendResponse(c, res)
 	}
 }
 
-func (v *Handler) extractResult(sr *stream.Result) (int, *monitoring.Int) {
+func extractResult(sr *stream.Result) (int, *monitoring.Int) {
 	var code = http.StatusAccepted
 	var monInt = request.ResponseAccepted
 	set := func(c int, i *monitoring.Int) {
@@ -110,8 +100,8 @@ func (v *Handler) extractResult(sr *stream.Result) (int, *monitoring.Int) {
 	return code, monInt
 }
 
-func (v *Handler) sendResponse(c *request.Context, sr *stream.Result) {
-	statusCode, monitoringInt := v.extractResult(sr)
+func sendResponse(c *request.Context, sr *stream.Result) {
+	statusCode, monitoringInt := extractResult(sr)
 	c.AddMonitoringCt(monitoringInt)
 
 	if statusCode >= http.StatusBadRequest {
@@ -131,13 +121,13 @@ func (v *Handler) sendResponse(c *request.Context, sr *stream.Result) {
 	c.Write(nil, statusCode)
 }
 
-func (v *Handler) sendError(c *request.Context, err *stream.Error) {
+func sendError(c *request.Context, err *stream.Error) {
 	sr := stream.Result{}
 	sr.Add(err)
-	v.sendResponse(c, &sr)
+	sendResponse(c, &sr)
 }
 
-func (v *Handler) validateRequest(r *http.Request) *stream.Error {
+func validateRequest(r *http.Request) *stream.Error {
 	if r.Method != http.MethodPost {
 		return &stream.Error{
 			Type:    stream.MethodForbiddenErrType,
@@ -154,8 +144,8 @@ func (v *Handler) validateRequest(r *http.Request) *stream.Error {
 	return nil
 }
 
-func (v *Handler) rateLimit(r *http.Request) (*rate.Limiter, *stream.Error) {
-	if rl, ok := v.rlc.GetRateLimiter(utility.RemoteAddr(r)); ok {
+func rateLimit(r *http.Request, rlc *RateLimitCache) (*rate.Limiter, *stream.Error) {
+	if rl, ok := rlc.GetRateLimiter(utility.RemoteAddr(r)); ok {
 		if !rl.Allow() {
 			return nil, &stream.Error{
 				Type:    stream.RateLimitErrType,
@@ -167,7 +157,7 @@ func (v *Handler) rateLimit(r *http.Request) (*rate.Limiter, *stream.Error) {
 	return nil, nil
 }
 
-func (v *Handler) bodyReader(r *http.Request) (io.ReadCloser, *stream.Error) {
+func bodyReader(r *http.Request) (io.ReadCloser, *stream.Error) {
 	reader, err := decoder.CompressedRequestReader(r)
 	if err != nil {
 		return nil, &stream.Error{

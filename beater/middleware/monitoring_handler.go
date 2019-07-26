@@ -18,37 +18,41 @@
 package middleware
 
 import (
+	"net/http"
+
+	"github.com/elastic/beats/libbeat/monitoring"
+
 	"github.com/elastic/apm-server/beater/request"
 )
 
-const (
-	slash = "/"
-)
+type Monitoring struct {
+	Req, Resp, RespErr, RespOK *monitoring.Int
+}
 
-//TODO implement properly
-func MonitoringHandler() Middleware {
+func MonitoringHandler(m *Monitoring) Middleware {
 	return func(h request.Handler) request.Handler {
+		inc := func(counter *monitoring.Int) {
+			if counter == nil {
+				return
+			}
+			counter.Inc()
+		}
 		return func(c *request.Context) {
+			inc(m.Req)
+
 			h(c)
 
-			//switch strings.TrimSuffix(c.Req.URL.Path, slash) {
-			//case agentConfigURL:
-			//	// do not monitor yet
-			//	requestCounter.Inc()
-			//default:
-			//	//TODO: use extra monitoring counters for rootHandler and assetHandler
-			//	requestCounter.Inc()
-			//	responseCounter.Inc()
-			//	if c.StatusCode() >= http.StatusBadRequest {
-			//		responseErrors.Inc()
-			//	} else {
-			//		responseSuccesses.Inc()
-			//	}
-			//
-			//	for _, ct := range c.MonitoringCounts() {
-			//		ct.Inc()
-			//	}
-			//}
+			inc(m.Resp)
+			if c.StatusCode() >= http.StatusBadRequest {
+				inc(m.RespErr)
+			} else {
+				inc(m.RespOK)
+			}
+
+			for _, ct := range c.MonitoringCounts() {
+				inc(ct)
+			}
 		}
+
 	}
 }

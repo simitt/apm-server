@@ -56,13 +56,16 @@ const (
 )
 
 var (
-	apmHandler = []middleware.Middleware{
-		middleware.LogHandler(),
-		middleware.MonitoringHandler(),
-		middleware.PanicHandler(),
-	}
-
 	emptyDecoder = func(*http.Request) (map[string]interface{}, error) { return map[string]interface{}{}, nil }
+
+	//TODO: change monitoring counter according to path (breaking)
+	intakeMonitoring = &middleware.Monitoring{
+		Req:     request.RequestCounter,
+		Resp:    request.ResponseCounter,
+		RespErr: request.ResponseErrors,
+		RespOK:  request.ResponseSuccesses,
+	}
+	acmMonitoring = &middleware.Monitoring{Req: request.RequestCounter}
 )
 
 type route struct {
@@ -108,11 +111,12 @@ func backendHandler(cfg *config.Config, reporter publish.Reporter) (request.Hand
 			Mconfig:      model.Config{Experimental: cfg.Mode == config.ModeExperimental},
 			MaxEventSize: cfg.MaxEventSize,
 		},
-		nil)
+		nil,
+		reporter)
 
 	return middleware.WithMiddleware(
-		h.Handle(cfg, reporter),
-		append(apmHandler,
+		h,
+		append(apmHandler(intakeMonitoring),
 			middleware.RequestTimeHandler(),
 			middleware.AuthHandler(cfg.SecretToken))...), nil
 }
@@ -135,11 +139,12 @@ func rumHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler,
 			Mconfig:      model.Config{Experimental: cfg.Mode == config.ModeExperimental},
 			MaxEventSize: cfg.MaxEventSize,
 		},
-		cache)
+		cache,
+		reporter)
 
 	return middleware.WithMiddleware(
-		h.Handle(cfg, reporter),
-		append(apmHandler,
+		h,
+		append(apmHandler(intakeMonitoring),
 			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled()),
 			middleware.RequestTimeHandler(),
 			middleware.CorsHandler(cfg.RumConfig.AllowOrigins))...), nil
@@ -155,7 +160,7 @@ func sourcemapHandler(cfg *config.Config, reporter publish.Reporter) (request.Ha
 
 	return middleware.WithMiddleware(
 		h,
-		append(apmHandler,
+		append(apmHandler(intakeMonitoring),
 			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled() && cfg.RumConfig.SourceMapping.IsEnabled()),
 			middleware.AuthHandler(cfg.SecretToken))...), nil
 }
@@ -168,7 +173,7 @@ func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, erro
 
 	return middleware.WithMiddleware(
 		acm.Handler(kbClient, cfg.AgentConfig, cfg.SecretToken),
-		append(apmHandler,
+		append(apmHandler(acmMonitoring),
 			middleware.KillSwitchHandler(kbClient != nil),
 			middleware.AuthHandler(cfg.SecretToken))...), nil
 }
@@ -176,8 +181,15 @@ func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, erro
 func rootHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, error) {
 	return middleware.WithMiddleware(
 		root.Handler(cfg.SecretToken),
-		apmHandler...), nil
+		apmHandler(intakeMonitoring)...), nil
 
+}
+func apmHandler(c *middleware.Monitoring) []middleware.Middleware {
+	return []middleware.Middleware{
+		middleware.LogHandler(),
+		middleware.MonitoringHandler(c),
+		middleware.PanicHandler(),
+	}
 }
 
 func systemMetadataDecoder(beaterConfig *config.Config, d decoder.ReqDecoder) decoder.ReqDecoder {

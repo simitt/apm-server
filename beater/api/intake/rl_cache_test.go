@@ -73,11 +73,11 @@ func TestCacheEviction(t *testing.T) {
 }
 
 func TestCacheOk(t *testing.T) {
-	var rlc *RlCache
+	var rlc *RateLimitCache
 	_, ok := rlc.GetRateLimiter("a")
 	assert.False(t, ok)
 
-	var cache = func() *RlCache {
+	var cache = func() *RateLimitCache {
 		rlc, err := NewRlCache(1, 1, 1)
 		require.NoError(t, err)
 		return rlc
