@@ -40,8 +40,9 @@ var (
 
 // Context abstracts request and response information for http requests
 type Context struct {
-	Req    *http.Request
-	Logger *logp.Logger
+	Req                  *http.Request
+	Logger               *logp.Logger
+	TokenSet, Authorized bool
 
 	w http.ResponseWriter
 

@@ -51,7 +51,7 @@ var (
 	errCacheControl  = fmt.Sprintf("max-age=%v, must-revalidate", errMaxAgeDuration.Seconds())
 )
 
-func Handler(kbClient kibana.Client, config *config.AgentConfig, token string) request.Handler {
+func Handler(kbClient kibana.Client, config *config.AgentConfig) request.Handler {
 	cacheControl := fmt.Sprintf("max-age=%v, must-revalidate", config.Cache.Expiration.Seconds())
 	fetcher := agentcfg.NewFetcher(kbClient, config.Cache.Expiration)
 
@@ -59,19 +59,19 @@ func Handler(kbClient kibana.Client, config *config.AgentConfig, token string) r
 		// error handling
 		c.Header().Set(headers.CacheControl, errCacheControl)
 		if valid, fullMsg := validateKbClient(kbClient); !valid {
-			c.WriteWithError(extractInternalError(fullMsg, token))
+			c.WriteWithError(extractInternalError(fullMsg, c.TokenSet))
 			return
 		}
 
 		query, queryErr := buildQuery(c.Req)
 		if queryErr != nil {
-			c.WriteWithError(extractQueryError(queryErr.Error(), token))
+			c.WriteWithError(extractQueryError(queryErr.Error(), c.TokenSet))
 			return
 		}
 
 		cfg, upstreamEtag, err := fetcher.Fetch(query, nil)
 		if err != nil {
-			c.WriteWithError(extractInternalError(err.Error(), token))
+			c.WriteWithError(extractInternalError(err.Error(), c.TokenSet))
 			return
 		}
 
@@ -125,7 +125,7 @@ func buildQuery(r *http.Request) (query agentcfg.Query, err error) {
 	return
 }
 
-func extractInternalError(msg string, token string) (string, string, int) {
+func extractInternalError(msg string, withAuth bool) (string, string, int) {
 	var shortMsg = errMsgServiceUnavailable
 	switch {
 	case msg == errMsgKibanaDisabled || msg == errMsgNoKibanaConnection:
@@ -139,19 +139,19 @@ func extractInternalError(msg string, token string) (string, string, int) {
 	case strings.Contains(msg, agentcfg.ErrMsgReadKibanaResponse):
 		shortMsg = agentcfg.ErrMsgReadKibanaResponse
 	}
-	return authErrMsg(msg, shortMsg, token), msg, http.StatusServiceUnavailable
+	return authErrMsg(msg, shortMsg, withAuth), msg, http.StatusServiceUnavailable
 }
 
-func extractQueryError(msg string, token string) (string, string, int) {
+func extractQueryError(msg string, withAuth bool) (string, string, int) {
 	if strings.Contains(msg, errMsgMethodUnsupported) {
-		return authErrMsg(msg, errMsgMethodUnsupported, token), msg, http.StatusMethodNotAllowed
+		return authErrMsg(msg, errMsgMethodUnsupported, withAuth), msg, http.StatusMethodNotAllowed
 	}
-	return authErrMsg(msg, errMsgInvalidQuery, token), msg, http.StatusBadRequest
+	return authErrMsg(msg, errMsgInvalidQuery, withAuth), msg, http.StatusBadRequest
 }
 
-func authErrMsg(fullMsg, shortMsg string, token string) string {
-	if token == "" {
-		return shortMsg
+func authErrMsg(fullMsg, shortMsg string, withAuth bool) string {
+	if withAuth {
+		return fullMsg
 	}
-	return fullMsg
+	return shortMsg
 }

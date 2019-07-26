@@ -118,7 +118,7 @@ func backendHandler(cfg *config.Config, reporter publish.Reporter) (request.Hand
 		h,
 		append(apmHandler(intakeMonitoring),
 			middleware.RequestTimeHandler(),
-			middleware.AuthHandler(cfg.SecretToken))...), nil
+			middleware.RequireAuthorization(cfg.SecretToken))...), nil
 }
 
 func rumHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
@@ -162,7 +162,7 @@ func sourcemapHandler(cfg *config.Config, reporter publish.Reporter) (request.Ha
 		h,
 		append(apmHandler(intakeMonitoring),
 			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled() && cfg.RumConfig.SourceMapping.IsEnabled()),
-			middleware.AuthHandler(cfg.SecretToken))...), nil
+			middleware.RequireAuthorization(cfg.SecretToken))...), nil
 }
 
 func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, error) {
@@ -172,16 +172,18 @@ func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, erro
 	}
 
 	return middleware.WithMiddleware(
-		acm.Handler(kbClient, cfg.AgentConfig, cfg.SecretToken),
+		acm.Handler(kbClient, cfg.AgentConfig),
 		append(apmHandler(acmMonitoring),
 			middleware.KillSwitchHandler(kbClient != nil),
-			middleware.AuthHandler(cfg.SecretToken))...), nil
+			middleware.RequireAuthorization(cfg.SecretToken),
+			middleware.SetAuthorization(cfg.SecretToken))...), nil
 }
 
 func rootHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, error) {
 	return middleware.WithMiddleware(
-		root.Handler(cfg.SecretToken),
-		apmHandler(intakeMonitoring)...), nil
+		root.Handler(),
+		append(apmHandler(intakeMonitoring),
+			middleware.SetAuthorization(cfg.SecretToken))...), nil
 
 }
 func apmHandler(c *middleware.Monitoring) []middleware.Middleware {

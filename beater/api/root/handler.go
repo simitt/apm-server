@@ -24,11 +24,10 @@ import (
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/version"
 
-	"github.com/elastic/apm-server/beater/middleware"
 	"github.com/elastic/apm-server/beater/request"
 )
 
-func Handler(token string) request.Handler {
+func Handler() request.Handler {
 	serverInfo := common.MapStr{
 		"build_date": version.BuildTime().Format(time.RFC3339),
 		"build_sha":  version.Commit(),
@@ -46,7 +45,7 @@ func Handler(token string) request.Handler {
 			return
 		}
 
-		if middleware.IsAuthorized(c.Req, token) {
+		if c.Authorized {
 			detailedOkResponse.WriteTo(c)
 			return
 		}
