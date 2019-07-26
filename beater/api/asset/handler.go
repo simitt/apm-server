@@ -18,12 +18,10 @@
 package asset
 
 import (
-	"net/http"
 	"strings"
 
 	"go.elastic.co/apm"
 
-	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/request"
 	"github.com/elastic/apm-server/decoder"
 	"github.com/elastic/apm-server/processor/asset"
@@ -32,62 +30,56 @@ import (
 	"github.com/elastic/apm-server/utility"
 )
 
-type Handler struct {
-	requestDecoder decoder.ReqDecoder
-	processor      asset.Processor
-	tconfig        transform.Config
-}
-
-func NewHandler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Config) *Handler {
-	return &Handler{requestDecoder: dec, processor: processor, tconfig: cfg}
-}
-
-func (h *Handler) Handle(beaterConfig *config.Config, report publish.Reporter) request.Handler {
+func Handler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Config, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
-		h.processRequest(c.Req, report).WriteTo(c)
-	}
-}
 
-func (h *Handler) processRequest(r *http.Request, report publish.Reporter) request.Result {
-	if r.Method != "POST" {
-		return request.MethodNotAllowedResult
-	}
-
-	data, err := h.requestDecoder(r)
-	if err != nil {
-		if strings.Contains(err.Error(), "request body too large") {
-			return request.RequestTooLargeResult
+		if c.Req.Method != "POST" {
+			request.MethodNotAllowedResult.WriteTo(c)
+			return
 		}
-		return request.CannotDecodeResult(err)
-	}
 
-	if err = h.processor.Validate(data); err != nil {
-		return request.CannotValidateResult(err)
-	}
-
-	metadata, transformables, err := h.processor.Decode(data)
-	if err != nil {
-		return request.CannotDecodeResult(err)
-	}
-
-	tctx := &transform.Context{
-		RequestTime: utility.RequestTime(r.Context()),
-		Config:      h.tconfig,
-		Metadata:    *metadata,
-	}
-
-	req := publish.PendingReq{Transformables: transformables, Tcontext: tctx}
-	ctx := r.Context()
-	span, ctx := apm.StartSpan(ctx, "Send", "Reporter")
-	defer span.End()
-	req.Trace = !span.Dropped()
-
-	if err = report(ctx, req); err != nil {
-		if err == publish.ErrChannelClosed {
-			return request.ServerShuttingDownResult(err)
+		var result request.Result
+		data, err := dec(c.Req)
+		if err != nil {
+			if strings.Contains(err.Error(), "request body too large") {
+				result = request.RequestTooLargeResult
+			} else {
+				result = request.CannotDecodeResult(err)
+			}
+			result.WriteTo(c)
+			return
 		}
-		return request.FullQueueResult(err)
-	}
 
-	return request.AcceptedResult
+		if err = processor.Validate(data); err != nil {
+			request.CannotValidateResult(err).WriteTo(c)
+			return
+		}
+
+		metadata, transformables, err := processor.Decode(data)
+		if err != nil {
+			request.CannotDecodeResult(err).WriteTo(c)
+			return
+		}
+
+		tctx := &transform.Context{
+			RequestTime: utility.RequestTime(c.Req.Context()),
+			Config:      cfg,
+			Metadata:    *metadata,
+		}
+		req := publish.PendingReq{Transformables: transformables, Tcontext: tctx}
+		span, ctx := apm.StartSpan(c.Req.Context(), "Send", "Reporter")
+		defer span.End()
+		req.Trace = !span.Dropped()
+
+		if err = report(ctx, req); err != nil {
+			if err == publish.ErrChannelClosed {
+				result = request.ServerShuttingDownResult(err)
+			} else {
+				result = request.FullQueueResult(err)
+			}
+			result.WriteTo(c)
+		}
+
+		request.AcceptedResult.WriteTo(c)
+	}
 }

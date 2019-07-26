@@ -20,36 +20,54 @@ package api
 import (
 	"expvar"
 	"net/http"
-	"sync"
+	"regexp"
 
+	"github.com/elastic/apm-server/beater/api/acm"
+	"github.com/elastic/apm-server/beater/api/asset"
+	"github.com/elastic/apm-server/beater/api/intake"
 	"github.com/elastic/apm-server/beater/api/root"
 	"github.com/elastic/apm-server/beater/config"
+	"github.com/elastic/apm-server/beater/middleware"
 	"github.com/elastic/apm-server/beater/request"
+	"github.com/elastic/apm-server/decoder"
+	"github.com/elastic/apm-server/kibana"
 	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/model"
+	"github.com/elastic/apm-server/processor/asset/sourcemap"
+	"github.com/elastic/apm-server/processor/stream"
 	"github.com/elastic/apm-server/publish"
+	"github.com/elastic/apm-server/transform"
 	"github.com/elastic/beats/libbeat/logp"
 )
 
-type contextPool struct {
-	p sync.Pool
-}
+const (
+	RootURL = "/"
 
-func newContextPool() *contextPool {
-	pool := contextPool{}
-	pool.p.New = func() interface{} {
-		return &request.Context{}
+	AgentConfigURL = "/config/v1/agents"
+
+	// intake v2
+	BackendURL = "/intake/v2/events"
+	RumURL     = "/intake/v2/rum/events"
+
+	// assets
+	SourcemapURL = "/assets/v1/sourcemaps"
+
+	burstMultiplier = 3
+)
+
+var (
+	apmHandler = []middleware.Middleware{
+		middleware.LogHandler(),
+		middleware.MonitoringHandler(),
+		middleware.PanicHandler(),
 	}
-	return &pool
-}
 
-func (pool *contextPool) handler(h request.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := pool.p.Get().(*request.Context)
-		defer pool.p.Put(c)
-		c.Reset(w, r)
+	emptyDecoder = func(*http.Request) (map[string]interface{}, error) { return map[string]interface{}{}, nil }
+)
 
-		middlewareFor(r, h)(c)
-	})
+type route struct {
+	path string
+	fn   func(*config.Config, publish.Reporter) (request.Handler, error)
 }
 
 func NewMuxer(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMux, error) {
@@ -57,33 +75,127 @@ func NewMuxer(beaterConfig *config.Config, report publish.Reporter) (*http.Serve
 	mux := http.NewServeMux()
 	logger := logp.NewLogger(logs.Handler)
 
-	for path, route := range AssetRoutes {
-		logger.Infof("Path %s added to request handler", path)
-		handler, err := route.Handler(route.Processor, beaterConfig, report)
+	routeMap := []route{
+		{SourcemapURL, sourcemapHandler},
+		{RootURL, rootHandler},
+		{AgentConfigURL, agentHandler},
+		{RumURL, rumHandler},
+		{BackendURL, backendHandler},
+	}
+
+	for _, route := range routeMap {
+		h, err := route.fn(beaterConfig, report)
 		if err != nil {
 			return nil, err
 		}
-		mux.Handle(path, pool.handler(handler))
+		logger.Infof("Path %s added to request handler", route.path)
+		mux.Handle(route.path, pool.handler(h))
+
 	}
-	for path, route := range IntakeRoutes {
-		logger.Infof("Path %s added to request handler", path)
-
-		handler, err := route.Handler(path, beaterConfig, report)
-		if err != nil {
-			return nil, err
-		}
-		mux.Handle(path, pool.handler(handler))
-	}
-
-	mux.Handle(AgentConfigURL, pool.handler(agentHandler(beaterConfig)))
-	logger.Infof("Path %s added to request handler", AgentConfigURL)
-
-	mux.Handle(RootURL, pool.handler(root.Handler(beaterConfig.SecretToken)))
-
 	if beaterConfig.Expvar.IsEnabled() {
 		path := beaterConfig.Expvar.Url
 		logger.Infof("Path %s added to request handler", path)
 		mux.Handle(path, expvar.Handler())
 	}
 	return mux, nil
+}
+
+func backendHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
+	dec := systemMetadataDecoder(cfg, emptyDecoder)
+	h := intake.NewHandler(dec,
+		&stream.Processor{
+			Tconfig:      transform.Config{},
+			Mconfig:      model.Config{Experimental: cfg.Mode == config.ModeExperimental},
+			MaxEventSize: cfg.MaxEventSize,
+		},
+		nil)
+
+	return middleware.WithMiddleware(
+		h.Handle(cfg, reporter),
+		append(apmHandler,
+			middleware.RequestTimeHandler(),
+			middleware.AuthHandler(cfg.SecretToken))...), nil
+}
+
+func rumHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
+	dec := userMetaDataDecoder(cfg, emptyDecoder)
+
+	tcfg, err := rumTransformConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	cache, err := intake.NewRlCache(cfg.RumConfig.EventRate.LruSize, cfg.RumConfig.EventRate.Limit, burstMultiplier)
+	if err != nil {
+		return nil, err
+	}
+	h := intake.NewHandler(dec,
+		&stream.Processor{
+			Tconfig:      *tcfg,
+			Mconfig:      model.Config{Experimental: cfg.Mode == config.ModeExperimental},
+			MaxEventSize: cfg.MaxEventSize,
+		},
+		cache)
+
+	return middleware.WithMiddleware(
+		h.Handle(cfg, reporter),
+		append(apmHandler,
+			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled()),
+			middleware.RequestTimeHandler(),
+			middleware.CorsHandler(cfg.RumConfig.AllowOrigins))...), nil
+}
+
+func sourcemapHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
+	tcfg, err := rumTransformConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	dec := systemMetadataDecoder(cfg, decoder.DecodeSourcemapFormData)
+	h := asset.Handler(dec, sourcemap.Processor, *tcfg, reporter)
+
+	return middleware.WithMiddleware(
+		h,
+		append(apmHandler,
+			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled() && cfg.RumConfig.SourceMapping.IsEnabled()),
+			middleware.AuthHandler(cfg.SecretToken))...), nil
+}
+
+func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, error) {
+	var kbClient kibana.Client
+	if cfg.Kibana.Enabled() {
+		kbClient = kibana.NewConnectingClient(cfg.Kibana)
+	}
+
+	return middleware.WithMiddleware(
+		acm.Handler(kbClient, cfg.AgentConfig, cfg.SecretToken),
+		append(apmHandler,
+			middleware.KillSwitchHandler(kbClient != nil),
+			middleware.AuthHandler(cfg.SecretToken))...), nil
+}
+
+func rootHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, error) {
+	return middleware.WithMiddleware(
+		root.Handler(cfg.SecretToken),
+		apmHandler...), nil
+
+}
+
+func systemMetadataDecoder(beaterConfig *config.Config, d decoder.ReqDecoder) decoder.ReqDecoder {
+	return decoder.DecodeSystemData(d, beaterConfig.AugmentEnabled)
+}
+
+func userMetaDataDecoder(beaterConfig *config.Config, d decoder.ReqDecoder) decoder.ReqDecoder {
+	return decoder.DecodeUserData(d, beaterConfig.AugmentEnabled)
+}
+
+func rumTransformConfig(beaterConfig *config.Config) (*transform.Config, error) {
+	smapper, err := beaterConfig.RumConfig.MemoizedSmapMapper()
+	if err != nil {
+		return nil, err
+	}
+	return &transform.Config{
+		SmapMapper:          smapper,
+		LibraryPattern:      regexp.MustCompile(beaterConfig.RumConfig.LibraryPattern),
+		ExcludeFromGrouping: regexp.MustCompile(beaterConfig.RumConfig.ExcludeFromGrouping),
+	}, nil
 }

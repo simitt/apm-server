@@ -25,27 +25,30 @@ const (
 	slash = "/"
 )
 
-func MonitoringHandler(h request.Handler) request.Handler {
-	return func(c *request.Context) {
-		h(c)
+//TODO implement properly
+func MonitoringHandler() Middleware {
+	return func(h request.Handler) request.Handler {
+		return func(c *request.Context) {
+			h(c)
 
-		//switch strings.TrimSuffix(c.Req.URL.Path, slash) {
-		//case agentConfigURL:
-		//	// do not monitor yet
-		//	requestCounter.Inc()
-		//default:
-		//	//TODO: use extra monitoring counters for rootHandler and assetHandler
-		//	requestCounter.Inc()
-		//	responseCounter.Inc()
-		//	if c.StatusCode() >= http.StatusBadRequest {
-		//		responseErrors.Inc()
-		//	} else {
-		//		responseSuccesses.Inc()
-		//	}
-		//
-		//	for _, ct := range c.MonitoringCounts() {
-		//		ct.Inc()
-		//	}
-		//}
+			//switch strings.TrimSuffix(c.Req.URL.Path, slash) {
+			//case agentConfigURL:
+			//	// do not monitor yet
+			//	requestCounter.Inc()
+			//default:
+			//	//TODO: use extra monitoring counters for rootHandler and assetHandler
+			//	requestCounter.Inc()
+			//	responseCounter.Inc()
+			//	if c.StatusCode() >= http.StatusBadRequest {
+			//		responseErrors.Inc()
+			//	} else {
+			//		responseSuccesses.Inc()
+			//	}
+			//
+			//	for _, ct := range c.MonitoringCounts() {
+			//		ct.Inc()
+			//	}
+			//}
+		}
 	}
 }

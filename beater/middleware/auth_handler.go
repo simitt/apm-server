@@ -9,13 +9,15 @@ import (
 	"github.com/elastic/apm-server/beater/request"
 )
 
-func AuthHandler(secretToken string, h request.Handler) request.Handler {
-	return func(c *request.Context) {
-		if !IsAuthorized(c.Req, secretToken) {
-			request.UnauthorizedResult.WriteTo(c)
-			return
+func AuthHandler(secretToken string) Middleware {
+	return func(h request.Handler) request.Handler {
+		return func(c *request.Context) {
+			if !IsAuthorized(c.Req, secretToken) {
+				request.UnauthorizedResult.WriteTo(c)
+				return
+			}
+			h(c)
 		}
-		h(c)
 	}
 }
 

@@ -30,37 +30,39 @@ import (
 	"github.com/elastic/apm-server/utility"
 )
 
-func LogHandler(h request.Handler) request.Handler {
+func LogHandler() Middleware {
 	logger := logp.NewLogger(logs.Request)
 
-	return func(c *request.Context) {
-		reqID, err := uuid.NewV4()
-		if err != nil {
-			request.InternalErrorResult(err).WriteTo(c)
-		}
-
-		reqLogger := logger.With(
-			"request_id", reqID,
-			"method", c.Req.Method,
-			"URL", c.Req.URL,
-			"content_length", c.Req.ContentLength,
-			"remote_address", utility.RemoteAddr(c.Req),
-			"user-agent", c.Req.Header.Get(headers.UserAgent))
-
-		c.Logger = reqLogger
-		h(c)
-
-		keysAndValues := []interface{}{"response_code", c.StatusCode()}
-		if c.StatusCode() >= http.StatusBadRequest {
-			keysAndValues = append(keysAndValues, "error", c.Error())
-			if c.Stacktrace() != "" {
-				keysAndValues = append(keysAndValues, "stacktrace", c.Stacktrace())
+	return func(h request.Handler) request.Handler {
+		return func(c *request.Context) {
+			reqID, err := uuid.NewV4()
+			if err != nil {
+				request.InternalErrorResult(err).WriteTo(c)
 			}
-			reqLogger.Errorw("error handling request", keysAndValues...)
-			return
-		}
 
-		//TODO: log body if log level is debug
-		reqLogger.Infow("handled request", keysAndValues...)
+			reqLogger := logger.With(
+				"request_id", reqID,
+				"method", c.Req.Method,
+				"URL", c.Req.URL,
+				"content_length", c.Req.ContentLength,
+				"remote_address", utility.RemoteAddr(c.Req),
+				"user-agent", c.Req.Header.Get(headers.UserAgent))
+
+			c.Logger = reqLogger
+			h(c)
+
+			keysAndValues := []interface{}{"response_code", c.StatusCode()}
+			if c.StatusCode() >= http.StatusBadRequest {
+				keysAndValues = append(keysAndValues, "error", c.Error())
+				if c.Stacktrace() != "" {
+					keysAndValues = append(keysAndValues, "stacktrace", c.Stacktrace())
+				}
+				reqLogger.Errorw("error handling request", keysAndValues...)
+				return
+			}
+
+			//TODO: log body if log level is debug
+			reqLogger.Infow("handled request", keysAndValues...)
+		}
 	}
 }
