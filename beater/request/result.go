@@ -20,123 +20,136 @@ package request
 import (
 	"net/http"
 
-	"github.com/elastic/beats/libbeat/monitoring"
-
 	"github.com/pkg/errors"
 )
 
-var (
-	serverMetrics = monitoring.Default.NewRegistry("apm-server.server", monitoring.PublishExpvar)
-	counter       = func(s string) *monitoring.Int {
-		return monitoring.NewInt(serverMetrics, s)
-	}
+const (
+	NameRequestCount        = "request.count"
+	NameResponseCount       = "response.count"
+	NameResponseErrorsCount = "response.errors.count"
+	NameResponseValidCount  = "response.valid.count"
 
-	RequestCounter = counter("request.count")
+	NameResponseValidOK          = "response.valid.ok"
+	NameResponseValidAccepted    = "response.valid.accepted"
+	NameResponseValidNotModified = "response.valid.notmodified"
 
-	ResponseCounter = counter("response.count")
+	NameResponseErrorsForbidden          = "response.errors.forbidden"
+	NameResponseErrorsUnauthorized       = "response.errors.unauthorized"
+	NameResponseErrorsNotFound           = "response.errors.notfound"
+	NameResponseErrorsInvalidQuery       = "response.errors.invalidquery"
+	NameResponseErrorsRequestTooLarge    = "response.errors.toolarge"
+	NameResponseErrorsDecode             = "response.errors.decode"
+	NameResponseErrorsValidate           = "response.errors.validate"
+	NameResponseErrorsRateLimit          = "response.errors.ratelimit"
+	NameResponseErrorsMethodNotAllowed   = "response.errors.method"
+	NameResponseErrorsFullQueue          = "response.errors.queue"
+	NameResponseErrorsShuttingDown       = "response.errors.closed"
+	NameResponseErrorsServiceUnavailable = "response.errors.unavailable"
+	NameResponseErrorsInternal           = "response.errors.internal"
 
-	ResponseErrors    = counter("response.errors.count")
-	ResponseSuccesses = counter("response.valid.count")
+	// Keywords
+	KeywordResponseValidOK       = "request ok"
+	KeywordResponseValidAccepted = "request accepted"
+	KeywordResponseNotModified   = "not modified"
 
-	ResponseOk       = counter("response.valid.ok")
-	ResponseAccepted = counter("response.valid.accepted")
-
-	InternalErrorCounter      = counter("response.errors.internal")
-	ForbiddenCounter          = counter("response.errors.forbidden")
-	RequestTooLargeCounter    = counter("response.errors.toolarge")
-	DecodeCounter             = counter("response.errors.decode")
-	ValidateCounter           = counter("response.errors.validate")
-	RateLimitCounter          = counter("response.errors.ratelimit")
-	MethodNotAllowedCounter   = counter("response.errors.method")
-	FullQueueCounter          = counter("response.errors.queue")
-	ServerShuttingDownCounter = counter("response.errors.closed")
-	UnauthorizedCounter       = counter("response.errors.unauthorized")
-
-	OkResult = Result{
-		Code:    http.StatusOK,
-		Counter: ResponseOk,
-	}
-	AcceptedResult = Result{
-		Code:    http.StatusAccepted,
-		Counter: ResponseAccepted,
-	}
-	InternalErrorResult = func(err error) Result {
-		return Result{
-			Err:     errors.Wrap(err, "internal error"),
-			Code:    http.StatusInternalServerError,
-			Counter: InternalErrorCounter,
-		}
-	}
-	ForbiddenResult = func(err error) Result {
-		return Result{
-			Err:     errors.Wrap(err, "forbidden request"),
-			Code:    http.StatusForbidden,
-			Counter: ForbiddenCounter,
-		}
-	}
-	UnauthorizedResult = Result{
-		Err:     errors.New("invalid token"),
-		Code:    http.StatusUnauthorized,
-		Counter: UnauthorizedCounter,
-	}
-	RequestTooLargeResult = Result{
-		Err:     errors.New("request body too large"),
-		Code:    http.StatusRequestEntityTooLarge,
-		Counter: RequestTooLargeCounter,
-	}
-	CannotDecodeResult = func(err error) Result {
-		return Result{
-			Err:     errors.Wrap(err, "data decoding error"),
-			Code:    http.StatusBadRequest,
-			Counter: DecodeCounter,
-		}
-	}
-	CannotValidateResult = func(err error) Result {
-		return Result{
-			Err:     errors.Wrap(err, "data validation error"),
-			Code:    http.StatusBadRequest,
-			Counter: ValidateCounter,
-		}
-	}
-	RateLimitedResult = Result{
-		Err:     errors.New("too many requests"),
-		Code:    http.StatusTooManyRequests,
-		Counter: RateLimitCounter,
-	}
-	MethodNotAllowedResult = Result{
-		Err:     errors.New("only POST requests are supported"),
-		Code:    http.StatusMethodNotAllowed,
-		Counter: MethodNotAllowedCounter,
-	}
-	FullQueueResult = func(err error) Result {
-		return Result{
-			Err:     errors.Wrap(err, "queue is full"),
-			Code:    http.StatusServiceUnavailable,
-			Counter: FullQueueCounter,
-		}
-	}
-	ServerShuttingDownResult = func(err error) Result {
-		return Result{
-			Err:     errors.New("server is shutting down"),
-			Code:    http.StatusServiceUnavailable,
-			Counter: ServerShuttingDownCounter,
-		}
-	}
+	KeywordResponseErrorsForbidden          = "forbidden request"
+	KeywordResponseErrorsUnauthorized       = "invalid token"
+	KeywordResponseErrorsNotFound           = "404 page not found"
+	KeywordResponseErrorsInvalidQuery       = "invalid query"
+	KeywordResponseErrorsRequestTooLarge    = "request body too large"
+	KeywordResponseErrorsDecode             = "data decoding error"
+	KeywordResponseErrorsValidate           = "data validation error"
+	KeywordResponseErrorsRateLimit          = "too many requests"
+	KeywordResponseErrorsMethodNotAllowed   = "only POST requests are supported"
+	KeywordResponseErrorsFullQueue          = "queue is full"
+	KeywordResponseErrorsShuttingDown       = "server is shutting down"
+	KeywordResponseErrorsServiceUnavailable = "service unavailable"
+	KeywordResponseErrorsInternal           = "internal error"
 )
+
+func ResultFor(name string, result *Result) {
+	ResultWithError(name, nil, result)
+}
+
+func ResultWithError(name string, err error, r *Result) {
+	if r == nil {
+		return
+	}
+	var body interface{}
+	switch name {
+	case NameResponseValidOK:
+		r.Set(NameResponseValidOK, http.StatusOK, KeywordResponseValidOK, body, err)
+
+	case NameResponseValidAccepted:
+		r.Set(NameResponseValidAccepted, http.StatusAccepted, KeywordResponseValidAccepted, body, err)
+
+	case NameResponseValidNotModified:
+		r.Set(NameResponseValidNotModified, http.StatusNotModified, KeywordResponseNotModified, body, err)
+
+	case NameResponseErrorsForbidden:
+		r.Set(NameResponseErrorsForbidden, http.StatusForbidden, KeywordResponseErrorsForbidden, body, err)
+
+	case NameResponseErrorsUnauthorized:
+		r.Set(NameResponseErrorsUnauthorized, http.StatusUnauthorized, KeywordResponseErrorsUnauthorized, body, err)
+
+	case NameResponseErrorsNotFound:
+		r.Set(NameResponseErrorsNotFound, http.StatusNotFound, KeywordResponseErrorsNotFound, body, err)
+
+	case NameResponseErrorsInvalidQuery:
+		r.Set(NameResponseErrorsInvalidQuery, http.StatusBadRequest, KeywordResponseErrorsInvalidQuery, body, err)
+
+	case NameResponseErrorsRequestTooLarge:
+		r.Set(NameResponseErrorsRequestTooLarge, http.StatusRequestEntityTooLarge, KeywordResponseErrorsRequestTooLarge, body, err)
+
+	case NameResponseErrorsDecode:
+		r.Set(NameResponseErrorsDecode, http.StatusBadRequest, KeywordResponseErrorsDecode, body, err)
+
+	case NameResponseErrorsValidate:
+		r.Set(NameResponseErrorsValidate, http.StatusBadRequest, KeywordResponseErrorsValidate, body, err)
+
+	case NameResponseErrorsRateLimit:
+		r.Set(NameResponseErrorsRateLimit, http.StatusTooManyRequests, KeywordResponseErrorsRateLimit, body, err)
+
+	case NameResponseErrorsMethodNotAllowed:
+		r.Set(NameResponseErrorsMethodNotAllowed, http.StatusMethodNotAllowed, KeywordResponseErrorsMethodNotAllowed, body, err)
+
+	case NameResponseErrorsFullQueue:
+		r.Set(NameResponseErrorsFullQueue, http.StatusServiceUnavailable, KeywordResponseErrorsFullQueue, body, err)
+
+	case NameResponseErrorsShuttingDown:
+		r.Set(NameResponseErrorsShuttingDown, http.StatusServiceUnavailable, KeywordResponseErrorsShuttingDown, body, err)
+
+	case NameResponseErrorsServiceUnavailable:
+		r.Set(NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, KeywordResponseErrorsServiceUnavailable, body, err)
+
+	case NameResponseErrorsInternal:
+		fallthrough
+	default:
+		r.Set(NameResponseErrorsInternal, http.StatusInternalServerError, KeywordResponseErrorsInternal, body, err)
+	}
+}
 
 type Result struct {
 	Code    int
-	Counter *monitoring.Int
+	Name    string
+	Keyword string
 	Err     error
 	Body    interface{}
 }
 
-func (r Result) WriteTo(c *Context) {
-	if r.Code >= http.StatusBadRequest || r.Err != nil {
-		//TODO: remove extra handling when changing logs
-		err := map[string]string{"error": r.Err.Error()}
-		c.WriteWithError(r.Err.Error(), err, r.Code)
-		return
+func (r *Result) Set(name string, statusCode int, keyword string, body interface{}, err error) {
+	r.Name = name
+	r.Code = statusCode
+	r.Keyword = keyword
+	r.Body = body
+	if body != nil {
+		r.Body = body
+	} else if statusCode >= http.StatusBadRequest {
+		r.Body = r.Err
+		if err == nil {
+			r.Err = errors.New(keyword)
+		} else {
+			r.Err = err
+		}
 	}
-	c.Write(r.Body, r.Code)
 }

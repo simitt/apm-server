@@ -130,8 +130,8 @@ var (
 			method:                 http.MethodGet,
 			respStatus:             http.StatusServiceUnavailable,
 			respCacheControlHeader: "max-age=300, must-revalidate",
-			respBody:               errWrap(errMsgNoKibanaConnection),
-			respBodyToken:          errWrap(errMsgNoKibanaConnection),
+			respBody:               errWrap(msgNoKibanaConnection),
+			respBodyToken:          errWrap(msgNoKibanaConnection),
 		},
 
 		"InvalidVersion": {
@@ -140,16 +140,16 @@ var (
 			method:                 http.MethodGet,
 			respStatus:             http.StatusServiceUnavailable,
 			respCacheControlHeader: "max-age=300, must-revalidate",
-			respBody:               errWrap(errMsgKibanaVersionNotCompatible),
+			respBody:               errWrap(msgKibanaVersionNotCompatible),
 			respBodyToken: errWrap(fmt.Sprintf("%s: min version 7.3.0, configured version 7.2.0",
-				errMsgKibanaVersionNotCompatible)),
+				msgKibanaVersionNotCompatible)),
 		},
 
 		"NoService": {
 			kbClient:               tests.MockKibana(http.StatusOK, m{}, mockVersion, true),
 			method:                 http.MethodGet,
 			respStatus:             http.StatusBadRequest,
-			respBody:               errWrap(errMsgInvalidQuery),
+			respBody:               errWrap(msgInvalidQuery),
 			respBodyToken:          errWrap(`service.name is required`),
 			respCacheControlHeader: "max-age=300, must-revalidate",
 		},
@@ -159,8 +159,8 @@ var (
 			method:                 http.MethodPut,
 			respStatus:             http.StatusMethodNotAllowed,
 			respCacheControlHeader: "max-age=300, must-revalidate",
-			respBody:               errWrap(errMsgMethodUnsupported),
-			respBodyToken:          errWrap(fmt.Sprintf("%s: PUT", errMsgMethodUnsupported)),
+			respBody:               errWrap(msgMethodUnsupported),
+			respBodyToken:          errWrap(fmt.Sprintf("%s: PUT", msgMethodUnsupported)),
 		},
 	}
 )

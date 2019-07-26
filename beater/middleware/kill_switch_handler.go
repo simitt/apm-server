@@ -23,13 +23,17 @@ import (
 	"github.com/elastic/apm-server/beater/request"
 )
 
+const errMsg = "endpoint is disabled"
+
 func KillSwitchHandler(killSwitch bool) Middleware {
 	return func(h request.Handler) request.Handler {
 		return func(c *request.Context) {
 			if killSwitch {
 				h(c)
 			} else {
-				request.ForbiddenResult(errors.New("endpoint is disabled")).WriteTo(c)
+				var result request.Result
+				request.ResultWithError(request.NameResponseErrorsForbidden, errors.New(errMsg), &result)
+				c.Write(&result)
 			}
 		}
 	}

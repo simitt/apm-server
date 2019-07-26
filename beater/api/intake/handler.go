@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"strings"
 
-	"golang.org/x/time/rate"
+	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/monitoring"
+	"golang.org/x/time/rate"
 
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
@@ -70,56 +70,55 @@ func NewHandler(dec decoder.ReqDecoder, processor *stream.Processor, rlc *RateLi
 	}
 }
 
-func extractResult(sr *stream.Result) (int, *monitoring.Int) {
+func extractResult(c *request.Context, sr *stream.Result, result *request.Result) {
 	var code = http.StatusAccepted
-	var monInt = request.ResponseAccepted
-	set := func(c int, i *monitoring.Int) {
+	var name = request.NameResponseValidAccepted
+	var keyword = request.KeywordResponseValidAccepted
+
+	set := func(c int, n string, k string) {
 		if c > code {
 			code = c
-			monInt = i
+			name = n
+			keyword = k
 		}
 	}
 
 	for _, err := range sr.Errors {
 		switch err.Type {
 		case stream.MethodForbiddenErrType:
-			set(http.StatusBadRequest, request.MethodNotAllowedCounter)
+			set(http.StatusBadRequest, request.NameResponseErrorsMethodNotAllowed, request.KeywordResponseErrorsMethodNotAllowed)
 		case stream.InputTooLargeErrType:
-			set(http.StatusBadRequest, request.RequestTooLargeCounter)
+			set(http.StatusBadRequest, request.NameResponseErrorsRequestTooLarge, request.KeywordResponseErrorsRequestTooLarge)
 		case stream.InvalidInputErrType:
-			set(http.StatusBadRequest, request.ValidateCounter)
+			set(http.StatusBadRequest, request.NameResponseErrorsValidate, request.KeywordResponseErrorsValidate)
 		case stream.RateLimitErrType:
-			set(http.StatusTooManyRequests, request.RateLimitCounter)
+			set(http.StatusTooManyRequests, request.NameResponseErrorsRateLimit, request.KeywordResponseErrorsRateLimit)
 		case stream.QueueFullErrType:
-			return http.StatusServiceUnavailable, request.FullQueueCounter
+			set(http.StatusServiceUnavailable, request.NameResponseErrorsFullQueue, request.KeywordResponseErrorsFullQueue)
+			break
 		case stream.ShuttingDownErrType:
-			return http.StatusServiceUnavailable, request.ServerShuttingDownCounter
+			set(http.StatusServiceUnavailable, request.NameResponseErrorsShuttingDown, request.KeywordResponseErrorsShuttingDown)
+			break
 		default:
-			set(http.StatusInternalServerError, request.InternalErrorCounter)
+			set(http.StatusInternalServerError, request.NameResponseErrorsInternal, request.KeywordResponseErrorsInternal)
 		}
 	}
-	return code, monInt
+	result.Set(name, code, keyword, nil, errors.New(sr.Error()))
 }
 
 func sendResponse(c *request.Context, sr *stream.Result) {
-	statusCode, monitoringInt := extractResult(sr)
-	c.AddMonitoringCt(monitoringInt)
-
-	if statusCode >= http.StatusBadRequest {
+	var result request.Result
+	extractResult(c, sr, &result)
+	if result.Code >= http.StatusBadRequest {
 		// this signals to the client that we're closing the connection
 		// but also signals to http.Server that it should close it:
 		// https://golang.org/src/net/http/server.go#L1254
 		c.Header().Add(headers.Connection, "Close")
-		c.WriteWithError(sr, sr.Error(), statusCode)
-		return
+		result.Body = sr
+	} else if _, ok := c.Req.URL.Query()["verbose"]; ok {
+		result.Body = sr
 	}
-
-	if _, ok := c.Req.URL.Query()["verbose"]; ok {
-		c.Write(sr, statusCode)
-		return
-	}
-
-	c.Write(nil, statusCode)
+	c.Write(&result)
 }
 
 func sendError(c *request.Context, err *stream.Error) {

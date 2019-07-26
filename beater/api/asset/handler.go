@@ -32,32 +32,35 @@ import (
 
 func Handler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Config, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
+		var result request.Result
 
 		if c.Req.Method != "POST" {
-			request.MethodNotAllowedResult.WriteTo(c)
+			request.ResultFor(request.NameResponseErrorsMethodNotAllowed, &result)
+			c.Write(&result)
 			return
 		}
 
-		var result request.Result
 		data, err := dec(c.Req)
 		if err != nil {
 			if strings.Contains(err.Error(), "request body too large") {
-				result = request.RequestTooLargeResult
+				request.ResultWithError(request.NameResponseErrorsRequestTooLarge, err, &result)
 			} else {
-				result = request.CannotDecodeResult(err)
+				request.ResultWithError(request.NameResponseErrorsDecode, err, &result)
 			}
-			result.WriteTo(c)
+			c.Write(&result)
 			return
 		}
 
 		if err = processor.Validate(data); err != nil {
-			request.CannotValidateResult(err).WriteTo(c)
+			request.ResultWithError(request.NameResponseErrorsValidate, err, &result)
+			c.Write(&result)
 			return
 		}
 
 		metadata, transformables, err := processor.Decode(data)
 		if err != nil {
-			request.CannotDecodeResult(err).WriteTo(c)
+			request.ResultWithError(request.NameResponseErrorsDecode, err, &result)
+			c.Write(&result)
 			return
 		}
 
@@ -73,13 +76,14 @@ func Handler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Co
 
 		if err = report(ctx, req); err != nil {
 			if err == publish.ErrChannelClosed {
-				result = request.ServerShuttingDownResult(err)
+				request.ResultWithError(request.NameResponseErrorsShuttingDown, err, &result)
 			} else {
-				result = request.FullQueueResult(err)
+				request.ResultWithError(request.NameResponseErrorsFullQueue, err, &result)
 			}
-			result.WriteTo(c)
+			c.Write(&result)
 		}
 
-		request.AcceptedResult.WriteTo(c)
+		request.ResultFor(request.NameResponseValidAccepted, &result)
+		c.Write(&result)
 	}
 }

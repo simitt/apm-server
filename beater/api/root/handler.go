@@ -18,7 +18,6 @@
 package root
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/elastic/beats/libbeat/common"
@@ -34,22 +33,23 @@ func Handler() request.Handler {
 		"build_sha":  version.Commit(),
 		"version":    version.GetDefaultVersion(),
 	}
-	detailedOkResponse := request.Result{
-		Code:    http.StatusOK,
-		Counter: request.ResponseOk,
-		Body:    serverInfo,
-	}
+	var resultOK, resultDetailOK, resultNotFound request.Result
+	request.ResultFor(request.NameResponseValidOK, &resultOK)
+	request.ResultFor(request.NameResponseValidOK, &resultDetailOK)
+	resultDetailOK.Body = serverInfo
+	request.ResultFor(request.NameResponseErrorsNotFound, &resultNotFound)
 
 	return func(c *request.Context) {
 		if c.Req.URL.Path != "/" {
-			c.Write("404 page not found", http.StatusNotFound)
+
+			c.Write(&resultNotFound)
 			return
 		}
 
 		if c.Authorized {
-			detailedOkResponse.WriteTo(c)
+			c.Write(&resultDetailOK)
 			return
 		}
-		request.OkResult.WriteTo(c)
+		c.Write(&resultOK)
 	}
 }

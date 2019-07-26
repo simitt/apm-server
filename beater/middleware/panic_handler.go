@@ -22,8 +22,12 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	"github.com/pkg/errors"
+
 	"github.com/elastic/apm-server/beater/request"
 )
+
+const keywordPanic = "panic handling request"
 
 func PanicHandler() Middleware {
 	return func(h request.Handler) request.Handler {
@@ -37,7 +41,8 @@ func PanicHandler() Middleware {
 						err = fmt.Errorf("internal server error %+v", r)
 					}
 					c.AddStacktrace(string(debug.Stack()))
-					c.WriteWithError(nil, fmt.Sprintf("panic handling request: %s", err.Error()), http.StatusInternalServerError)
+					var result = &request.Result{}
+					result.Set(request.NameResponseErrorsInternal, http.StatusInternalServerError, keywordPanic, keywordPanic, errors.Wrap(err, keywordPanic))
 				}
 			}()
 			h(c)
