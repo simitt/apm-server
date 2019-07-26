@@ -41,16 +41,16 @@ import (
 )
 
 const (
-	RootURL = "/"
+	rootPath = "/"
 
-	AgentConfigURL = "/config/v1/agents"
+	acmPath = "/config/v1/agents"
 
 	// intake v2
-	BackendURL = "/intake/v2/events"
-	RumURL     = "/intake/v2/rum/events"
+	intakePath    = "/intake/v2/events"
+	intakeRumPath = "/intake/v2/rum/events"
 
 	// assets
-	SourcemapURL = "/assets/v1/sourcemaps"
+	assetSourcemapPath = "/assets/v1/sourcemaps"
 
 	burstMultiplier = 3
 )
@@ -79,11 +79,11 @@ func NewMuxer(beaterConfig *config.Config, report publish.Reporter) (*http.Serve
 	logger := logp.NewLogger(logs.Handler)
 
 	routeMap := []route{
-		{SourcemapURL, sourcemapHandler},
-		{RootURL, rootHandler},
-		{AgentConfigURL, agentHandler},
-		{RumURL, rumHandler},
-		{BackendURL, backendHandler},
+		{assetSourcemapPath, sourcemapHandler},
+		{rootPath, rootHandler},
+		{acmPath, agentHandler},
+		{intakeRumPath, rumHandler},
+		{intakePath, backendHandler},
 	}
 
 	for _, route := range routeMap {

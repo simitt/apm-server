@@ -28,6 +28,7 @@ import (
 )
 
 func Handler() request.Handler {
+
 	serverInfo := common.MapStr{
 		"build_date": version.BuildTime().Format(time.RFC3339),
 		"build_sha":  version.Commit(),

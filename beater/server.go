@@ -34,6 +34,10 @@ import (
 	"github.com/elastic/beats/libbeat/version"
 )
 
+const (
+	rootPath = "/"
+)
+
 func newServer(config *config.Config, tracer *apm.Tracer, report publish.Reporter) (*http.Server, error) {
 	mux, err := api.NewMuxer(config, report)
 	if err != nil {
@@ -68,7 +72,7 @@ func doNotTrace(req *http.Request) bool {
 		// or we will go into a continuous cycle.
 		return true
 	}
-	if req.URL.Path == api.RootURL {
+	if req.URL.Path == rootPath {
 		// Don't trace root url (healthcheck) requests.
 		return true
 	}

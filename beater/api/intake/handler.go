@@ -37,6 +37,7 @@ import (
 
 func NewHandler(dec decoder.ReqDecoder, processor *stream.Processor, rlc *RateLimitCache, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
+
 		serr := validateRequest(c.Req)
 		if serr != nil {
 			sendError(c, serr)
