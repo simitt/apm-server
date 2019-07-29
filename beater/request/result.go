@@ -19,33 +19,33 @@ package request
 
 import (
 	"net/http"
-
-	"github.com/pkg/errors"
 )
 
 const (
-	NameRequestCount        = "request.count"
-	NameResponseCount       = "response.count"
-	NameResponseErrorsCount = "response.errors.count"
-	NameResponseValidCount  = "response.valid.count"
+	IdUnset ResultID = "unset"
 
-	NameResponseValidOK          = "response.valid.ok"
-	NameResponseValidAccepted    = "response.valid.accepted"
-	NameResponseValidNotModified = "response.valid.notmodified"
+	IdRequestCount        ResultID = "request.count"
+	IdResponseCount       ResultID = "response.count"
+	IdResponseErrorsCount ResultID = "response.errors.count"
+	IdResponseValidCount  ResultID = "response.valid.count"
 
-	NameResponseErrorsForbidden          = "response.errors.forbidden"
-	NameResponseErrorsUnauthorized       = "response.errors.unauthorized"
-	NameResponseErrorsNotFound           = "response.errors.notfound"
-	NameResponseErrorsInvalidQuery       = "response.errors.invalidquery"
-	NameResponseErrorsRequestTooLarge    = "response.errors.toolarge"
-	NameResponseErrorsDecode             = "response.errors.decode"
-	NameResponseErrorsValidate           = "response.errors.validate"
-	NameResponseErrorsRateLimit          = "response.errors.ratelimit"
-	NameResponseErrorsMethodNotAllowed   = "response.errors.method"
-	NameResponseErrorsFullQueue          = "response.errors.queue"
-	NameResponseErrorsShuttingDown       = "response.errors.closed"
-	NameResponseErrorsServiceUnavailable = "response.errors.unavailable"
-	NameResponseErrorsInternal           = "response.errors.internal"
+	IdResponseValidOK          ResultID = "response.valid.ok"
+	IdResponseValidAccepted    ResultID = "response.valid.accepted"
+	IdResponseValidNotModified ResultID = "response.valid.notmodified"
+
+	IdResponseErrorsForbidden          ResultID = "response.errors.forbidden"
+	IdResponseErrorsUnauthorized       ResultID = "response.errors.unauthorized"
+	IdResponseErrorsNotFound           ResultID = "response.errors.notfound"
+	IdResponseErrorsInvalidQuery       ResultID = "response.errors.invalidquery"
+	IdResponseErrorsRequestTooLarge    ResultID = "response.errors.toolarge"
+	IdResponseErrorsDecode             ResultID = "response.errors.decode"
+	IdResponseErrorsValidate           ResultID = "response.errors.validate"
+	IdResponseErrorsRateLimit          ResultID = "response.errors.ratelimit"
+	IdResponseErrorsMethodNotAllowed   ResultID = "response.errors.method"
+	IdResponseErrorsFullQueue          ResultID = "response.errors.queue"
+	IdResponseErrorsShuttingDown       ResultID = "response.errors.closed"
+	IdResponseErrorsServiceUnavailable ResultID = "response.errors.unavailable"
+	IdResponseErrorsInternal           ResultID = "response.errors.internal"
 
 	// Keywords
 	KeywordResponseValidOK       = "request ok"
@@ -67,89 +67,127 @@ const (
 	KeywordResponseErrorsInternal           = "internal error"
 )
 
-func ResultFor(name string, result *Result) {
-	ResultWithError(name, nil, result)
+type ResultID string
+
+type Result struct {
+	Id         ResultID
+	StatusCode int
+	Keyword    string
+	Body       interface{}
+	Err        error
+	Stacktrace string
 }
 
-func ResultWithError(name string, err error, r *Result) {
+func (r *Result) Reset() {
+	r.Id = IdUnset
+	r.StatusCode = http.StatusOK
+	r.Keyword = ""
+	r.Body = nil
+	r.Err = nil
+	r.Stacktrace = ""
+}
+
+func (r *Result) SetFor(id ResultID) {
 	if r == nil {
 		return
 	}
-	var body interface{}
-	switch name {
-	case NameResponseValidOK:
-		r.Set(NameResponseValidOK, http.StatusOK, KeywordResponseValidOK, body, err)
+	r.Id = id
 
-	case NameResponseValidAccepted:
-		r.Set(NameResponseValidAccepted, http.StatusAccepted, KeywordResponseValidAccepted, body, err)
+	switch id {
+	case IdResponseValidOK:
+		r.StatusCode = http.StatusOK
+		r.Keyword = KeywordResponseValidOK
 
-	case NameResponseValidNotModified:
-		r.Set(NameResponseValidNotModified, http.StatusNotModified, KeywordResponseNotModified, body, err)
+	case IdResponseValidAccepted:
+		r.StatusCode = http.StatusAccepted
+		r.Keyword = KeywordResponseValidAccepted
 
-	case NameResponseErrorsForbidden:
-		r.Set(NameResponseErrorsForbidden, http.StatusForbidden, KeywordResponseErrorsForbidden, body, err)
+	case IdResponseValidNotModified:
+		r.StatusCode = http.StatusNotModified
+		r.Keyword = KeywordResponseNotModified
 
-	case NameResponseErrorsUnauthorized:
-		r.Set(NameResponseErrorsUnauthorized, http.StatusUnauthorized, KeywordResponseErrorsUnauthorized, body, err)
+	case IdResponseErrorsForbidden:
+		r.StatusCode = http.StatusForbidden
+		r.Keyword = KeywordResponseErrorsForbidden
 
-	case NameResponseErrorsNotFound:
-		r.Set(NameResponseErrorsNotFound, http.StatusNotFound, KeywordResponseErrorsNotFound, body, err)
+	case IdResponseErrorsUnauthorized:
+		r.StatusCode = http.StatusUnauthorized
+		r.Keyword = KeywordResponseErrorsUnauthorized
 
-	case NameResponseErrorsInvalidQuery:
-		r.Set(NameResponseErrorsInvalidQuery, http.StatusBadRequest, KeywordResponseErrorsInvalidQuery, body, err)
+	case IdResponseErrorsNotFound:
+		r.StatusCode = http.StatusNotFound
+		r.Keyword = KeywordResponseErrorsNotFound
 
-	case NameResponseErrorsRequestTooLarge:
-		r.Set(NameResponseErrorsRequestTooLarge, http.StatusRequestEntityTooLarge, KeywordResponseErrorsRequestTooLarge, body, err)
+	case IdResponseErrorsInvalidQuery:
+		r.StatusCode = http.StatusBadRequest
+		r.Keyword = KeywordResponseErrorsInvalidQuery
 
-	case NameResponseErrorsDecode:
-		r.Set(NameResponseErrorsDecode, http.StatusBadRequest, KeywordResponseErrorsDecode, body, err)
+	case IdResponseErrorsRequestTooLarge:
+		r.StatusCode = http.StatusRequestEntityTooLarge
+		r.Keyword = KeywordResponseErrorsRequestTooLarge
 
-	case NameResponseErrorsValidate:
-		r.Set(NameResponseErrorsValidate, http.StatusBadRequest, KeywordResponseErrorsValidate, body, err)
+	case IdResponseErrorsDecode:
+		r.StatusCode = http.StatusBadRequest
+		r.Keyword = KeywordResponseErrorsDecode
 
-	case NameResponseErrorsRateLimit:
-		r.Set(NameResponseErrorsRateLimit, http.StatusTooManyRequests, KeywordResponseErrorsRateLimit, body, err)
+	case IdResponseErrorsValidate:
+		r.StatusCode = http.StatusBadRequest
+		r.Keyword = KeywordResponseErrorsValidate
 
-	case NameResponseErrorsMethodNotAllowed:
-		r.Set(NameResponseErrorsMethodNotAllowed, http.StatusMethodNotAllowed, KeywordResponseErrorsMethodNotAllowed, body, err)
+	case IdResponseErrorsRateLimit:
+		r.StatusCode = http.StatusTooManyRequests
+		r.Keyword = KeywordResponseErrorsRateLimit
 
-	case NameResponseErrorsFullQueue:
-		r.Set(NameResponseErrorsFullQueue, http.StatusServiceUnavailable, KeywordResponseErrorsFullQueue, body, err)
+	case IdResponseErrorsMethodNotAllowed:
+		r.StatusCode = http.StatusMethodNotAllowed
+		r.Keyword = KeywordResponseErrorsMethodNotAllowed
 
-	case NameResponseErrorsShuttingDown:
-		r.Set(NameResponseErrorsShuttingDown, http.StatusServiceUnavailable, KeywordResponseErrorsShuttingDown, body, err)
+	case IdResponseErrorsFullQueue:
+		r.StatusCode = http.StatusServiceUnavailable
+		r.Keyword = KeywordResponseErrorsFullQueue
 
-	case NameResponseErrorsServiceUnavailable:
-		r.Set(NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, KeywordResponseErrorsServiceUnavailable, body, err)
+	case IdResponseErrorsShuttingDown:
+		r.StatusCode = http.StatusServiceUnavailable
+		r.Keyword = KeywordResponseErrorsShuttingDown
 
-	case NameResponseErrorsInternal:
+	case IdResponseErrorsServiceUnavailable:
+		r.StatusCode = http.StatusServiceUnavailable
+		r.Keyword = KeywordResponseErrorsServiceUnavailable
+
+	case IdResponseErrorsInternal:
 		fallthrough
+
 	default:
-		r.Set(NameResponseErrorsInternal, http.StatusInternalServerError, KeywordResponseErrorsInternal, body, err)
+		r.StatusCode = http.StatusInternalServerError
+		r.Keyword = KeywordResponseErrorsInternal
 	}
 }
 
-type Result struct {
-	Code    int
-	Name    string
-	Keyword string
-	Err     error
-	Body    interface{}
-}
-
-func (r *Result) Set(name string, statusCode int, keyword string, body interface{}, err error) {
-	r.Name = name
-	r.Code = statusCode
+func (r *Result) Set(id ResultID, statusCode int, keyword string, body interface{}, err error) {
+	if r == nil {
+		return
+	}
+	r.Id = id
+	r.StatusCode = statusCode
 	r.Keyword = keyword
 	r.Body = body
-	if body != nil {
-		r.Body = body
-	} else if statusCode >= http.StatusBadRequest {
-		r.Body = r.Err
-		if err == nil {
-			r.Err = errors.New(keyword)
-		} else {
-			r.Err = err
-		}
-	}
+	r.Err = err
 }
+
+//func (r *Result) set(statusCode int, keyword string) {
+//	r.Id = id
+//	r.StatusCode = statusCode
+//	r.Keyword = keyword
+//	r.Body = body
+//
+//	//if body != nil {
+//	//	r.Body = body
+//	//} else if statusCode >= http.StatusBadRequest {
+//	//	r.Body = r.Err
+//	//	if err == nil {
+//	//		r.Err = errors.New(keyword)
+//	//	} else {
+//	//		r.Err = err
+//	//	}
+//	//}
+//}

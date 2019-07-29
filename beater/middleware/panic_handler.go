@@ -19,10 +19,7 @@ package middleware
 
 import (
 	"fmt"
-	"net/http"
 	"runtime/debug"
-
-	"github.com/pkg/errors"
 
 	"github.com/elastic/apm-server/beater/request"
 )
@@ -40,9 +37,11 @@ func PanicHandler() Middleware {
 					if err, ok = r.(error); !ok {
 						err = fmt.Errorf("internal server error %+v", r)
 					}
-					c.AddStacktrace(string(debug.Stack()))
-					var result = &request.Result{}
-					result.Set(request.NameResponseErrorsInternal, http.StatusInternalServerError, keywordPanic, keywordPanic, errors.Wrap(err, keywordPanic))
+					c.Result.SetFor(request.IdResponseErrorsInternal)
+					c.Result.Stacktrace = string(debug.Stack())
+					c.Result.Keyword = keywordPanic
+					c.Result.Body = keywordPanic
+					c.Result.Err = err
 				}
 			}()
 			h(c)

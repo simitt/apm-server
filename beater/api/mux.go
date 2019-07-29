@@ -96,7 +96,7 @@ func NewMuxer(beaterConfig *config.Config, report publish.Reporter) (*http.Serve
 	return mux, nil
 }
 
-func apmHandler(fn func(string) *monitoring.Int) []middleware.Middleware {
+func apmHandler(fn func(request.ResultID) *monitoring.Int) []middleware.Middleware {
 	return []middleware.Middleware{
 		middleware.LogHandler(),
 		middleware.MonitoringHandler(fn),
@@ -117,7 +117,7 @@ func backendHandler(cfg *config.Config, reporter publish.Reporter) (request.Hand
 
 	return middleware.WithMiddleware(
 		h,
-		append(apmHandler(intake.MonitoringNameToInt),
+		append(apmHandler(intake.ResultIdToMonitoringInt),
 			middleware.RequestTimeHandler(),
 			middleware.RequireAuthorization(cfg.SecretToken))...), nil
 }
@@ -145,7 +145,7 @@ func rumHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler,
 
 	return middleware.WithMiddleware(
 		h,
-		append(apmHandler(intake.MonitoringNameToInt),
+		append(apmHandler(intake.ResultIdToMonitoringInt),
 			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled()),
 			middleware.RequestTimeHandler(),
 			middleware.CorsHandler(cfg.RumConfig.AllowOrigins))...), nil
@@ -162,7 +162,7 @@ func sourcemapHandler(cfg *config.Config, reporter publish.Reporter) (request.Ha
 
 	return middleware.WithMiddleware(
 		h,
-		append(apmHandler(intake.MonitoringNameToInt),
+		append(apmHandler(intake.ResultIdToMonitoringInt),
 			middleware.KillSwitchHandler(cfg.RumConfig.IsEnabled() && cfg.RumConfig.SourceMapping.IsEnabled()),
 			middleware.RequireAuthorization(cfg.SecretToken))...), nil
 }
@@ -175,7 +175,7 @@ func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, erro
 
 	return middleware.WithMiddleware(
 		acm.Handler(kbClient, cfg.AgentConfig),
-		append(apmHandler(acm.MonitoringNameToInt),
+		append(apmHandler(acm.ResultIdToMonitoringInt),
 			middleware.KillSwitchHandler(kbClient != nil),
 			middleware.RequireAuthorization(cfg.SecretToken),
 			middleware.SetAuthorization(cfg.SecretToken))...), nil
@@ -185,7 +185,7 @@ func agentHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, erro
 func rootHandler(cfg *config.Config, _ publish.Reporter) (request.Handler, error) {
 	return middleware.WithMiddleware(
 		root.Handler(),
-		append(apmHandler(intake.MonitoringNameToInt),
+		append(apmHandler(intake.ResultIdToMonitoringInt),
 			middleware.SetAuthorization(cfg.SecretToken))...), nil
 
 }

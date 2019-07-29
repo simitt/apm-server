@@ -70,15 +70,17 @@ func NewHandler(dec decoder.ReqDecoder, processor *stream.Processor, rlc *RateLi
 	}
 }
 
-func extractResult(c *request.Context, sr *stream.Result, result *request.Result) {
-	var code = http.StatusAccepted
-	var name = request.NameResponseValidAccepted
-	var keyword = request.KeywordResponseValidAccepted
+func sendResponse(c *request.Context, sr *stream.Result) {
+	code := http.StatusAccepted
+	id := request.IdResponseValidAccepted
+	keyword := request.KeywordResponseValidAccepted
+	err := errors.New(sr.Error())
+	var body interface{}
 
-	set := func(c int, n string, k string) {
+	set := func(c int, id request.ResultID, k string) {
 		if c > code {
 			code = c
-			name = n
+			id = id
 			keyword = k
 		}
 	}
@@ -86,39 +88,36 @@ func extractResult(c *request.Context, sr *stream.Result, result *request.Result
 	for _, err := range sr.Errors {
 		switch err.Type {
 		case stream.MethodForbiddenErrType:
-			set(http.StatusBadRequest, request.NameResponseErrorsMethodNotAllowed, request.KeywordResponseErrorsMethodNotAllowed)
+			set(http.StatusBadRequest, request.IdResponseErrorsMethodNotAllowed, request.KeywordResponseErrorsMethodNotAllowed)
 		case stream.InputTooLargeErrType:
-			set(http.StatusBadRequest, request.NameResponseErrorsRequestTooLarge, request.KeywordResponseErrorsRequestTooLarge)
+			set(http.StatusBadRequest, request.IdResponseErrorsRequestTooLarge, request.KeywordResponseErrorsRequestTooLarge)
 		case stream.InvalidInputErrType:
-			set(http.StatusBadRequest, request.NameResponseErrorsValidate, request.KeywordResponseErrorsValidate)
+			set(http.StatusBadRequest, request.IdResponseErrorsValidate, request.KeywordResponseErrorsValidate)
 		case stream.RateLimitErrType:
-			set(http.StatusTooManyRequests, request.NameResponseErrorsRateLimit, request.KeywordResponseErrorsRateLimit)
+			set(http.StatusTooManyRequests, request.IdResponseErrorsRateLimit, request.KeywordResponseErrorsRateLimit)
 		case stream.QueueFullErrType:
-			set(http.StatusServiceUnavailable, request.NameResponseErrorsFullQueue, request.KeywordResponseErrorsFullQueue)
+			set(http.StatusServiceUnavailable, request.IdResponseErrorsFullQueue, request.KeywordResponseErrorsFullQueue)
 			break
 		case stream.ShuttingDownErrType:
-			set(http.StatusServiceUnavailable, request.NameResponseErrorsShuttingDown, request.KeywordResponseErrorsShuttingDown)
+			set(http.StatusServiceUnavailable, request.IdResponseErrorsShuttingDown, request.KeywordResponseErrorsShuttingDown)
 			break
 		default:
-			set(http.StatusInternalServerError, request.NameResponseErrorsInternal, request.KeywordResponseErrorsInternal)
+			set(http.StatusInternalServerError, request.IdResponseErrorsInternal, request.KeywordResponseErrorsInternal)
 		}
 	}
-	result.Set(name, code, keyword, nil, errors.New(sr.Error()))
-}
 
-func sendResponse(c *request.Context, sr *stream.Result) {
-	var result request.Result
-	extractResult(c, sr, &result)
-	if result.Code >= http.StatusBadRequest {
+	if code >= http.StatusBadRequest {
 		// this signals to the client that we're closing the connection
 		// but also signals to http.Server that it should close it:
 		// https://golang.org/src/net/http/server.go#L1254
 		c.Header().Add(headers.Connection, "Close")
-		result.Body = sr
+		body = sr
 	} else if _, ok := c.Req.URL.Query()["verbose"]; ok {
-		result.Body = sr
+		body = sr
 	}
-	c.Write(&result)
+
+	c.Result.Set(id, code, keyword, body, err)
+	c.Write()
 }
 
 func sendError(c *request.Context, err *stream.Error) {

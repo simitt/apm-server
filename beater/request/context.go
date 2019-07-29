@@ -45,22 +45,19 @@ type Context struct {
 
 	w http.ResponseWriter
 
-	statusCode int
-	err        interface{}
-	stacktrace string
-	monitoring string
+	Result Result
 }
 
 // Set allows to reuse a context by removing all request specific information
 func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	c.Req = r
+	c.Logger = nil
+	c.TokenSet = false
+	c.Authorized = false
 
 	c.w = w
-	c.statusCode = http.StatusOK
-	c.err = ""
-	c.stacktrace = ""
-	c.monitoring = ""
-	c.Logger = nil
+
+	c.Result.Reset()
 }
 
 // Header returns the http.Header of the context's writer
@@ -68,67 +65,37 @@ func (c *Context) Header() http.Header {
 	return c.w.Header()
 }
 
-// StatusCode returns the context's status code
-func (c *Context) StatusCode() int {
-	return c.statusCode
-}
-
-// Error returns the context's error
-func (c *Context) Error() interface{} {
-	return c.err
-}
-
-// Stacktrace returns the context's stacktrace
-func (c *Context) Stacktrace() string {
-	return c.stacktrace
-}
-
-// MonitoringCounts returns the monitoring integers collected through context processing
-func (c *Context) Monitoring() string {
-	return c.monitoring
-}
-
-// AddStacktrace sets a stacktrace for the context
-func (c *Context) AddStacktrace(stacktrace string) {
-	c.stacktrace = stacktrace
-}
-
 // Write sets response headers, and writes the body to the response writer.
 // In case body is nil only the headers will be set.
 // In case statusCode indicates an error response, the body is also set as error in the context.
-func (c *Context) Write(r *Result) {
-	c.err = r.Err
-	c.statusCode = r.Code
-	c.monitoring = r.Name
-
+func (c *Context) Write() {
 	c.w.Header().Set(headers.XContentTypeOptions, "nosniff")
 
-	body := r.Body
-
+	body := c.Result.Body
 	if body == nil {
-		body = r.Err
+		body = c.Result.Err
 	}
 
 	// necessary to keep current logic
-	if r.Code >= http.StatusBadRequest {
+	if c.Result.StatusCode >= http.StatusBadRequest {
 		if b, ok := body.(string); ok {
 			body = map[string]string{"error": b}
 		}
 	}
 
 	if body == nil {
-		c.w.WriteHeader(c.statusCode)
+		c.w.WriteHeader(c.Result.StatusCode)
 		return
 	}
 
 	var err error
 	if c.acceptJSON() {
 		c.w.Header().Set(headers.ContentType, "application/json")
-		c.w.WriteHeader(c.statusCode)
+		c.w.WriteHeader(c.Result.StatusCode)
 		err = c.writeJSON(body, true)
 	} else {
 		c.w.Header().Set(headers.ContentType, "text/plain; charset=utf-8")
-		c.w.WriteHeader(c.statusCode)
+		c.w.WriteHeader(c.Result.StatusCode)
 		err = c.writePlain(body)
 	}
 	if err != nil {

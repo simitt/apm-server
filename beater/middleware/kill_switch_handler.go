@@ -31,9 +31,9 @@ func KillSwitchHandler(killSwitch bool) Middleware {
 			if killSwitch {
 				h(c)
 			} else {
-				var result request.Result
-				request.ResultWithError(request.NameResponseErrorsForbidden, errors.New(errMsg), &result)
-				c.Write(&result)
+				c.Result.SetFor(request.IdResponseErrorsForbidden)
+				c.Result.Err = errors.New(errMsg)
+				c.Write()
 			}
 		}
 	}

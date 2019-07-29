@@ -44,9 +44,6 @@ const (
 	msgMethodUnsupported          = "method not supported"
 	msgNoKibanaConnection         = "unable to retrieve connection to Kibana"
 	msgServiceUnavailable         = "service unavailable"
-
-	keywordFetched  = "fetched"
-	keywordModified = "not modified"
 )
 
 var (
@@ -64,25 +61,24 @@ func Handler(kbClient kibana.Client, config *config.AgentConfig) request.Handler
 	fetcher := agentcfg.NewFetcher(kbClient, config.Cache.Expiration)
 
 	return func(c *request.Context) {
-		var result request.Result
 		// error handling
 		c.Header().Set(headers.CacheControl, errCacheControl)
-		if valid := validateKbClient(kbClient, c.TokenSet, &result); !valid {
-			c.Write(&result)
+		if valid := validateKbClient(c, kbClient, c.TokenSet); !valid {
+			c.Write()
 			return
 		}
 
 		query, queryErr := buildQuery(c.Req)
 		if queryErr != nil {
-			extractQueryError(queryErr, c.TokenSet, &result)
-			c.Write(&result)
+			extractQueryError(c, queryErr, c.TokenSet)
+			c.Write()
 			return
 		}
 
 		cfg, upstreamEtag, err := fetcher.Fetch(query, nil)
 		if err != nil {
-			extractInternalError(err, c.TokenSet, &result)
-			c.Write(&result)
+			extractInternalError(c, err, c.TokenSet)
+			c.Write()
 			return
 		}
 
@@ -91,22 +87,31 @@ func Handler(kbClient kibana.Client, config *config.AgentConfig) request.Handler
 		etag := fmt.Sprintf("\"%s\"", upstreamEtag)
 		c.Header().Set(headers.Etag, etag)
 		if etag == c.Req.Header.Get(headers.IfNoneMatch) {
-			result.Set(request.NameResponseValidNotModified, http.StatusNotModified, keywordModified, nil, nil)
+			c.Result.SetFor(request.IdResponseValidNotModified)
 		} else {
-			result.Set(request.NameResponseValidOK, http.StatusOK, keywordFetched, cfg, nil)
+			c.Result.SetFor(request.IdResponseValidOK)
+			c.Result.Body = cfg
 		}
-		c.Write(&result)
+		c.Write()
 	}
 }
 
-//TODO: chose more finegranular names for results for monitoring
-func validateKbClient(client kibana.Client, withAuth bool, r *request.Result) bool {
+//TODO: chose more fine granular names for results for monitoring
+func validateKbClient(c *request.Context, client kibana.Client, withAuth bool) bool {
 	if client == nil {
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, msgKibanaDisabled, msgKibanaDisabled, errMsgKibanaDisabled)
+		c.Result.Set(request.IdResponseErrorsServiceUnavailable,
+			http.StatusServiceUnavailable,
+			msgKibanaDisabled,
+			msgKibanaDisabled,
+			errMsgKibanaDisabled)
 		return false
 	}
 	if !client.Connected() {
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, msgNoKibanaConnection, msgNoKibanaConnection, errMsgNoKibanaConnection)
+		c.Result.Set(request.IdResponseErrorsServiceUnavailable,
+			http.StatusServiceUnavailable,
+			msgNoKibanaConnection,
+			msgNoKibanaConnection,
+			errMsgNoKibanaConnection)
 		return false
 	}
 	if supported, _ := client.SupportsVersion(minKibanaVersion); !supported {
@@ -115,7 +120,11 @@ func validateKbClient(client kibana.Client, withAuth bool, r *request.Result) bo
 		errMsg := fmt.Sprintf("%s: min version %+v, configured version %+v",
 			msgKibanaVersionNotCompatible, minKibanaVersion, version.String())
 		body := authErrMsg(errMsg, msgKibanaVersionNotCompatible, withAuth)
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, msgKibanaVersionNotCompatible, body, errors.New(errMsg))
+		c.Result.Set(request.IdResponseErrorsServiceUnavailable,
+			http.StatusServiceUnavailable,
+			msgKibanaVersionNotCompatible,
+			body,
+			errors.New(errMsg))
 		return false
 	}
 	return true
@@ -143,36 +152,50 @@ func buildQuery(r *http.Request) (query agentcfg.Query, err error) {
 	return
 }
 
-func extractInternalError(err error, withAuth bool, r *request.Result) {
+func extractInternalError(c *request.Context, err error, withAuth bool) {
 	msg := err.Error()
+	var body interface{}
+	var keyword string
 	switch {
 	case strings.Contains(msg, agentcfg.ErrMsgSendToKibanaFailed):
-		body := authErrMsg(msg, agentcfg.ErrMsgSendToKibanaFailed, withAuth)
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, agentcfg.ErrMsgSendToKibanaFailed, body, err)
+		body = authErrMsg(msg, agentcfg.ErrMsgSendToKibanaFailed, withAuth)
+		keyword = agentcfg.ErrMsgSendToKibanaFailed
 
 	case strings.Contains(msg, agentcfg.ErrMsgMultipleChoices):
-		body := authErrMsg(msg, agentcfg.ErrMsgMultipleChoices, withAuth)
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, agentcfg.ErrMsgMultipleChoices, body, err)
+		body = authErrMsg(msg, agentcfg.ErrMsgMultipleChoices, withAuth)
+		keyword = agentcfg.ErrMsgMultipleChoices
 
 	case strings.Contains(msg, agentcfg.ErrMsgReadKibanaResponse):
-		body := authErrMsg(msg, agentcfg.ErrMsgReadKibanaResponse, withAuth)
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, agentcfg.ErrMsgReadKibanaResponse, body, err)
+		body = authErrMsg(msg, agentcfg.ErrMsgReadKibanaResponse, withAuth)
+		keyword = agentcfg.ErrMsgReadKibanaResponse
 
 	default:
-		body := authErrMsg(msg, msgServiceUnavailable, withAuth)
-		r.Set(request.NameResponseErrorsServiceUnavailable, http.StatusServiceUnavailable, msgServiceUnavailable, body, err)
+		body = authErrMsg(msg, msgServiceUnavailable, withAuth)
+		keyword = msgServiceUnavailable
 	}
+
+	c.Result.Set(request.IdResponseErrorsServiceUnavailable,
+		http.StatusServiceUnavailable,
+		keyword,
+		body,
+		err)
 }
 
-func extractQueryError(err error, withAuth bool, r *request.Result) {
+func extractQueryError(c *request.Context, err error, withAuth bool) {
 	msg := err.Error()
 	if strings.Contains(msg, msgMethodUnsupported) {
-		body := authErrMsg(msg, msgMethodUnsupported, withAuth)
-		r.Set(request.NameResponseErrorsMethodNotAllowed, http.StatusMethodNotAllowed, msgMethodUnsupported, body, err)
+		c.Result.Set(request.IdResponseErrorsMethodNotAllowed,
+			http.StatusMethodNotAllowed,
+			msgMethodUnsupported,
+			authErrMsg(msg, msgMethodUnsupported, withAuth),
+			err)
 		return
 	}
-	body := authErrMsg(msg, msgInvalidQuery, withAuth)
-	r.Set(request.NameResponseErrorsInvalidQuery, http.StatusBadRequest, msgInvalidQuery, body, err)
+	c.Result.Set(request.IdResponseErrorsInvalidQuery,
+		http.StatusBadRequest,
+		msgInvalidQuery,
+		authErrMsg(msg, msgInvalidQuery, withAuth),
+		err)
 }
 
 func authErrMsg(fullMsg, shortMsg string, withAuth bool) string {

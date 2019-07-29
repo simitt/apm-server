@@ -33,23 +33,16 @@ func Handler() request.Handler {
 		"build_sha":  version.Commit(),
 		"version":    version.GetDefaultVersion(),
 	}
-	var resultOK, resultDetailOK, resultNotFound request.Result
-	request.ResultFor(request.NameResponseValidOK, &resultOK)
-	request.ResultFor(request.NameResponseValidOK, &resultDetailOK)
-	resultDetailOK.Body = serverInfo
-	request.ResultFor(request.NameResponseErrorsNotFound, &resultNotFound)
 
 	return func(c *request.Context) {
 		if c.Req.URL.Path != "/" {
-
-			c.Write(&resultNotFound)
-			return
+			c.Result.SetFor(request.IdResponseErrorsNotFound)
+		} else {
+			c.Result.SetFor(request.IdResponseValidOK)
+			if c.Authorized {
+				c.Result.Body = serverInfo
+			}
 		}
-
-		if c.Authorized {
-			c.Write(&resultDetailOK)
-			return
-		}
-		c.Write(&resultOK)
+		c.Write()
 	}
 }

@@ -30,9 +30,8 @@ func RequireAuthorization(token string) Middleware {
 	return func(h request.Handler) request.Handler {
 		return func(c *request.Context) {
 			if !isAuthorized(c.Req, token) {
-				var result request.Result
-				request.ResultFor(request.NameResponseErrorsUnauthorized, &result)
-				c.Write(&result)
+				c.Result.SetFor(request.IdResponseErrorsUnauthorized)
+				c.Write()
 				return
 			}
 

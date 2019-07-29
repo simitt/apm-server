@@ -69,9 +69,8 @@ func CorsHandler(allowedOrigins []string) Middleware {
 
 				c.Header().Set(headers.ContentLength, "0")
 
-				var result request.Result
-				request.ResultFor(request.NameResponseValidOK, &result)
-				c.Write(&result)
+				c.Result.SetFor(request.IdResponseValidOK)
+				c.Write()
 
 			} else if validOrigin {
 				// we need to check the origin and set the ACAO header in both the OPTIONS preflight and the actual request
@@ -79,10 +78,9 @@ func CorsHandler(allowedOrigins []string) Middleware {
 				h(c)
 
 			} else {
-				var result request.Result
-				err := errors.New("origin: '" + origin + "' is not allowed")
-				request.ResultWithError(request.NameResponseErrorsForbidden, err, &result)
-				c.Write(&result)
+				c.Result.SetFor(request.IdResponseErrorsForbidden)
+				c.Result.Err = errors.New("origin: '" + origin + "' is not allowed")
+				c.Write()
 			}
 		}
 	}

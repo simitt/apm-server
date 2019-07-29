@@ -47,16 +47,16 @@ func TestContext_Reset(t *testing.T) {
 	c := Context{
 		Req: r1, w: w1,
 		Logger:     logp.NewLogger(""),
-		statusCode: http.StatusServiceUnavailable, err: errors.New("foo"),
-		stacktrace: "bar", monitoringCts: []*monitoring.Int{monitoring.NewInt(mockRegistry, "xyz")},
+		statusCode: http.StatusServiceUnavailable, Err: errors.New("foo"),
+		Stacktrace: "bar", monitoringCts: []*monitoring.Int{monitoring.NewInt(mockRegistry, "xyz")},
 	}
 	c.Reset(w2, r2)
 	assert.Equal(t, http.MethodHead, c.Req.Method)
 	assert.Equal(t, http.StatusOK, w2.Code)
 	assert.Equal(t, http.StatusOK, c.statusCode)
 	assert.Empty(t, c.Logger)
-	assert.Empty(t, c.err)
-	assert.Empty(t, c.stacktrace)
+	assert.Empty(t, c.Err)
+	assert.Empty(t, c.Stacktrace)
 	assert.Empty(t, c.monitoringCts)
 }
 

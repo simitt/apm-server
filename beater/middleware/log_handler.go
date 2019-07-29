@@ -37,10 +37,9 @@ func LogHandler() Middleware {
 		return func(c *request.Context) {
 			reqID, err := uuid.NewV4()
 			if err != nil {
-
-				var result request.Result
-				request.ResultWithError(request.NameResponseErrorsInternal, err, &result)
-				c.Write(&result)
+				c.Result.SetFor(request.IdResponseErrorsInternal)
+				c.Result.Err = err
+				c.Write()
 			}
 
 			reqLogger := logger.With(
@@ -54,11 +53,11 @@ func LogHandler() Middleware {
 			c.Logger = reqLogger
 			h(c)
 
-			keysAndValues := []interface{}{"response_code", c.StatusCode()}
-			if c.StatusCode() >= http.StatusBadRequest {
-				keysAndValues = append(keysAndValues, "error", c.Error())
-				if c.Stacktrace() != "" {
-					keysAndValues = append(keysAndValues, "stacktrace", c.Stacktrace())
+			keysAndValues := []interface{}{"response_code", c.Result.StatusCode}
+			if c.Result.StatusCode >= http.StatusBadRequest {
+				keysAndValues = append(keysAndValues, "error", c.Result.Err)
+				if c.Result.Stacktrace != "" {
+					keysAndValues = append(keysAndValues, "stacktrace", c.Result.Stacktrace)
 				}
 				reqLogger.Errorw("error handling request", keysAndValues...)
 				return

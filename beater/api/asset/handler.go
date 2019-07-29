@@ -32,35 +32,36 @@ import (
 
 func Handler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Config, report publish.Reporter) request.Handler {
 	return func(c *request.Context) {
-		var result request.Result
-
 		if c.Req.Method != "POST" {
-			request.ResultFor(request.NameResponseErrorsMethodNotAllowed, &result)
-			c.Write(&result)
+			c.Result.SetFor(request.IdResponseErrorsMethodNotAllowed)
+			c.Write()
 			return
 		}
 
 		data, err := dec(c.Req)
 		if err != nil {
-			if strings.Contains(err.Error(), "request body too large") {
-				request.ResultWithError(request.NameResponseErrorsRequestTooLarge, err, &result)
+			if strings.Contains(err.Error(), request.KeywordResponseErrorsRequestTooLarge) {
+				c.Result.SetFor(request.IdResponseErrorsRequestTooLarge)
 			} else {
-				request.ResultWithError(request.NameResponseErrorsDecode, err, &result)
+				c.Result.SetFor(request.IdResponseErrorsDecode)
 			}
-			c.Write(&result)
+			c.Result.Err = err
+			c.Write()
 			return
 		}
 
 		if err = processor.Validate(data); err != nil {
-			request.ResultWithError(request.NameResponseErrorsValidate, err, &result)
-			c.Write(&result)
+			c.Result.SetFor(request.IdResponseErrorsValidate)
+			c.Result.Err = err
+			c.Write()
 			return
 		}
 
 		metadata, transformables, err := processor.Decode(data)
 		if err != nil {
-			request.ResultWithError(request.NameResponseErrorsDecode, err, &result)
-			c.Write(&result)
+			c.Result.SetFor(request.IdResponseErrorsDecode)
+			c.Result.Err = err
+			c.Write()
 			return
 		}
 
@@ -76,14 +77,15 @@ func Handler(dec decoder.ReqDecoder, processor asset.Processor, cfg transform.Co
 
 		if err = report(ctx, req); err != nil {
 			if err == publish.ErrChannelClosed {
-				request.ResultWithError(request.NameResponseErrorsShuttingDown, err, &result)
+				c.Result.SetFor(request.IdResponseErrorsShuttingDown)
 			} else {
-				request.ResultWithError(request.NameResponseErrorsFullQueue, err, &result)
+				c.Result.SetFor(request.IdResponseErrorsFullQueue)
 			}
-			c.Write(&result)
+			c.Result.Err = err
+			c.Write()
 		}
 
-		request.ResultFor(request.NameResponseValidAccepted, &result)
-		c.Write(&result)
+		c.Result.SetFor(request.IdResponseValidAccepted)
+		c.Write()
 	}
 }
