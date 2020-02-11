@@ -39,9 +39,9 @@ apm-server:
     #url: "/debug/vars"
 
   # Instrumentation support for the server's HTTP endpoints and event publisher.
-  #instrumentation:
+  instrumentation:
     # Set to true to enable instrumentation of the APM Server itself.
-    #enabled: false
+    enabled: true
 
     # Environment in which the APM Server is running on (eg: staging, production, etc.)
     #environment: ""
@@ -80,11 +80,11 @@ apm-server:
   # the pipeline is loaded and registered at the configured Elasticsearch instances.
   # Find the default pipeline configuration at `ingest/pipeline/definition.json`.
   # Automatic pipeline registration requires the `output.elasticsearch` to be enabled and configured.
-  #register.ingest.pipeline:
+  register.ingest.pipeline:
     # Registers APM pipeline definition in Elasticsearch on APM Server startup. Defaults to true.
-    #enabled: true
+    enabled: true
     # Overwrites existing APM pipeline definition in Elasticsearch. Defaults to false.
-    #overwrite: false
+    overwrite: true
 
 
   #---------------------------- APM Server - Secure Communication with Agents ----------------------------
@@ -345,7 +345,7 @@ apm-server:
 
   #---------------------------- APM Server - ILM Index Lifecycle Management ----------------------------
 
-  #ilm:
+  ilm:
     # Supported values are `auto`, `true` and `false`.
     # `true`: Make use of Elasticsearch's Index Lifecycle Management (ILM) for APM indices. If no Elasticsearch output is
     # configured or the configured instance does not support ILM, APM Server cannot apply ILM and must create
@@ -354,9 +354,9 @@ apm-server:
     # `auto`: If an Elasticsearch output is configured with default index and indices settings, and the configured
     # Elasticsearch instance supports ILM, `auto` will resolve to `true`. Otherwise `auto` will resolve to `false`.
     # Default value is `auto`.
-    #enabled: "auto"
+    enabled: "false"
 
-    #setup:
+    setup:
       # Only disable setup if you want to set up everything related to ILM on your own.
       # When setup is enabled, the APM Server creates:
       # - aliases and ILM policies if `apm-server.ilm.enabled` resolves to `true`.
@@ -365,7 +365,7 @@ apm-server:
       # Be aware that if you turn off setup, you need to manually manage event type specific templates on your own.
       # If you simply want to disable ILM, use the above setting, `apm-server.ilm.enabled`, instead.
       # Defaults to true.
-      #enabled: true
+      enabled: false
 
       # Configure whether or not existing policies and ILM related templates should be updated. This needs to be
       # set to true when customizing your policies.
@@ -434,22 +434,22 @@ apm-server:
 # The memory queue will present all available events (up to the outputs
 # bulk_max_size) to the output, the moment the output is ready to serve
 # another batch of events.
-#queue:
+queue:
   # Queue type by name (default 'mem').
-  #mem:
+  mem:
     # Max number of events the queue can buffer.
-    #events: 4096
+    events: 16384
 
     # Hints the minimum number of events stored in the queue,
     # before providing a batch of events to the outputs.
     # The default value is set to 2048.
     # A value of 0 ensures events are immediately available
     # to be sent to the outputs.
-    #flush.min_events: 2048
+    flush.min_events: 4096
 
     # Maximum duration after which events are available to the outputs,
     # if the number of events stored in the queue is < `flush.min_events`.
-    #flush.timeout: 1s
+    flush.timeout: 1s
 
 # Sets the maximum number of CPUs that can be executing simultaneously. The
 # default is the number of logical CPUs available in the system.
@@ -464,14 +464,15 @@ apm-server:
 # Set to false to disable template loading.
 #setup.template.enabled: true
 
+
 # Template name. By default the template name is "apm-%{[observer.version]}"
 # The template name and pattern has to be set in case the elasticsearch index pattern is modified.
-#setup.template.name: "apm-%{[observer.version]}"
+setup.template.name: "apm-%{[observer.version]}"
 
 # Template pattern. By default the template pattern is "apm-%{[observer.version]}-*" to apply to the default index settings.
 # The first part is the version of apm-server and then -* is used to match all daily indices.
 # The template name and pattern has to be set in case the elasticsearch index pattern is modified.
-#setup.template.pattern: "apm-%{[observer.version]}-*"
+setup.template.pattern: "apm-%{[observer.version]}-*"
 
 # Path to fields.yml file to generate the template.
 #setup.template.fields: "${path.config}/fields.yml"
@@ -526,8 +527,8 @@ output.elasticsearch:
 
   # Authentication credentials - either API key or username/password.
   #api_key: "id:api_key"
-  #username: "elastic"
-  #password: "changeme"
+  username: "admin"
+  password: "changeme"
 
   # Dictionary of HTTP parameters to pass within the url with index operations.
   #parameters:
@@ -535,7 +536,7 @@ output.elasticsearch:
     #param2: value2
 
   # Number of workers per Elasticsearch host.
-  #worker: 1
+  worker: 4
 
   # By using the configuration below, APM documents are stored to separate indices,
   # depending on their `processor.event`:
@@ -554,31 +555,31 @@ output.elasticsearch:
   # as they need to be aligned:
   # * `setup.template.name`
   # * `setup.template.pattern`
-  #index: "apm-%{[observer.version]}-%{+yyyy.MM.dd}"
-  #indices:
-  #  - index: "apm-%{[observer.version]}-sourcemap"
-  #    when.contains:
-  #      processor.event: "sourcemap"
-  #
-  #  - index: "apm-%{[observer.version]}-error-%{+yyyy.MM.dd}"
-  #    when.contains:
-  #      processor.event: "error"
-  #
-  #  - index: "apm-%{[observer.version]}-transaction-%{+yyyy.MM.dd}"
-  #    when.contains:
-  #      processor.event: "transaction"
-  #
-  #  - index: "apm-%{[observer.version]}-span-%{+yyyy.MM.dd}"
-  #    when.contains:
-  #      processor.event: "span"
-  #
-  #  - index: "apm-%{[observer.version]}-metric-%{+yyyy.MM.dd}"
-  #    when.contains:
-  #      processor.event: "metric"
-  #
-  #  - index: "apm-%{[observer.version]}-onboarding-%{+yyyy.MM.dd}"
-  #    when.contains:
-  #      processor.event: "onboarding"
+  index: "apm-%{[observer.version]}-%{+yyyy.MM.dd}"
+  indices:
+    - index: "apm-%{[observer.version]}-sourcemap"
+      when.contains:
+        processor.event: "sourcemap"
+
+    - index: "tmpapm-%{[observer.version]}-error-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "error"
+
+    - index: "tmpapm-%{[observer.version]}-transaction-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "transaction"
+
+    - index: "tmpapm-%{[observer.version]}-span-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "span"
+
+    - index: "apm-%{[observer.version]}-metric-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "metric"
+
+    - index: "apm-%{[observer.version]}-onboarding-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "onboarding"
 
   # A pipeline is a definition of processors applied to documents when ingesting them to Elasticsearch.
   # APM Server comes with a default pipeline definition, located at `ingest/pipeline/definition.json`, which is

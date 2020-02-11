@@ -6,6 +6,11 @@
     "processors" : [
       {
         "pipeline": {
+            "name": "apm_drop_spans"
+        }
+      },
+      {
+        "pipeline": {
           "name": "apm_user_agent"
         }
       },
@@ -21,6 +26,19 @@
       }
     ]
   }
+},
+{
+    "id": "apm_drop_spans",
+    "body": {
+        "description": "Drop spans",
+        "processors": [
+            {
+                "drop": {
+                    "if": "ctx.processor?.event == 'span'"
+                }
+            }
+        ]
+    }
 },
 {
   "id": "apm_user_agent",
@@ -77,5 +95,33 @@
       }
     ]
   }
+},
+{
+    "id": "apm_remove_non_positive",
+    "body": {
+        "description" : "Default removal pipeline for APM transformations",
+        "processors" : [
+            {
+                "pipeline": {
+                    "name": "apm_remove_non_positive_max_latency_anomaly_score"
+                }
+            }
+        ]
+    }
+},
+{
+    "id": "apm_remove_non_positive_max_latency_anomaly_score",
+    "body": {
+        "description": "Remove non positive max_latency_anomaly_score",
+        "processors": [
+            {
+                "remove": {
+                    "field": "max_latency_anomaly_score",
+                    "if": "ctx.max_latency_anomaly_score <= 0.0",
+                    "ignore_missing": true
+                }
+            }
+        ]
+    }
 }
 ]

@@ -1,0 +1,544 @@
+################################################################################
+
+DELETE manual-cont-transform
+GET apm-8.0.0-error/_mapping
+GET _template/apm-8.0.0
+
+GET tmpapm*transaction*/_count
+GET tmpapm-8.0.0-error-*/_count
+GET tmpapm-8.0.0*span*/_count
+
+GET _cat/indices
+DELETE tmpapm-8.0.0*
+DELETE apm-8.0.0*
+DELETE manual-cont*
+
+GET _ingest/pipeline/apm*
+
+
+
+########### Create minimal mapping for transactions and errors ingested from APM Server
+DELETE tmpapm-events*
+GET _template/tmpapm_events
+PUT _template/tmpapm_events
+{
+  "order" : 1,
+  "index_patterns" : [
+    "tmpapm-8.0.0-transaction*",
+    "tmpapm-8.0.0-error*"
+  ],
+  "settings" : {
+    "index" : {
+      "codec" : "best_compression",
+      "mapping" : {
+        "total_fields" : {
+          "limit" : "2000"
+        }
+      },
+      "refresh_interval" : "1ms",
+      "number_of_shards" : "1",
+      "query" : {
+        "default_field" : [
+          "event.ingested",
+          "trace.id",
+          "parent.id",
+          "service.name",
+          "transaction.name",
+          "transaction.duration.us",
+          "http.response.status_code",
+          "processor.event"
+        ]
+      },
+      "number_of_routing_shards" : "30",
+      "number_of_replicas" : "0"
+    }
+  },
+  "mappings" : {
+    "_meta" : {
+      "beat" : "apm",
+      "version" : "8.0.0"
+    },
+    "_source" : {
+      "enabled" : true
+    },
+    "date_detection" : false,
+    "properties" : {
+      "event" : {
+        "properties" : {
+          "ingested" : {
+            "type" : "date"
+          }
+        }
+      },
+      "parent" : {
+        "dynamic" : false,
+        "properties" : {
+          "id" : {
+            "ignore_above" : 1024,
+            "type" : "keyword"
+          }
+        }
+      },
+      "service" : {
+        "dynamic" : false,
+        "properties" : {
+          "name" : {
+            "ignore_above" : 1024,
+            "type" : "keyword",
+            "fields" : {
+              "text" : {
+                "norms" : false,
+                "type" : "text"
+              }
+            }
+          }
+        }
+      },
+      "transaction" : {
+        "dynamic" : false,
+        "properties" : {
+          "name" : {
+            "ignore_above" : 1024,
+            "type" : "keyword",
+            "fields" : {
+              "text" : {
+                "norms" : false,
+                "type" : "text"
+              }
+            }
+          },
+          "duration" : {
+            "properties" : {
+              "us" : {
+                "type" : "long"
+              }
+            }
+          }
+        }
+      },
+      "trace" : {
+        "dynamic" : false,
+        "properties" : {
+          "id" : {
+            "ignore_above" : 1024,
+            "type" : "keyword"
+          }
+        }
+      },
+      "http" : {
+        "dynamic" : false,
+        "properties" : {
+          "response" : {
+            "properties" : {
+              "status_code" : {
+                "type" : "long"
+              }
+            }
+          }
+        }
+      },
+      "processor" : {
+        "properties" : {
+          "event" : {
+            "ignore_above" : 1024,
+            "type" : "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+GET tmpapm*error*/_count
+GET tmpapm*transaction*,tmpapm*error*/_count
+
+########### Continuous Transform transaction docs into transformed tmp index
+
+DELETE /interesting_transformed_apm_events_cont
+PUT /interesting_transformed_apm_events_cont
+{
+  "mappings": {
+    "properties": {
+      "trace.id": {
+        "type": "keyword"
+      },
+      "service.name": {
+        "type": "keyword"
+      },
+      "transaction.name": {
+        "type": "keyword"
+      },
+      "trace_priority": {
+        "type": "rank_feature"
+      },
+      "max_latency_anomaly_score": {
+        "type": "rank_feature"
+      },
+      "total_errors": {
+        "type": "rank_feature"
+      }
+    }
+  }
+}
+GET interesting_transformed_apm_events_cont/_mapping
+GET interesting_transformed_apm_events_cont/_count
+GET interesting_transformed_apm_events/_count
+
+
+DELETE _transform/interesting_transform_apm_events_cont/
+PUT _transform/interesting_transform_apm_events_cont/
+{
+  "description": "Tailbased sampling test transform - transactions and errors",
+  "source": {
+    "index": ["tmpapm*transaction*", "tmpapm*error*"]
+  },
+  "dest": {
+    "index": "interesting_transformed_apm_events_cont",
+    "pipeline": "apm_remove_non_positive"
+  },
+  "sync": {
+    "time": {
+      "field": "event.ingested",
+      "delay": "60s"
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "trace.id": {
+        "terms": {
+          "field": "trace.id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_latency_anomaly_score": { "sum": { "field": "transaction.duration.us"}},
+      "trace_priority": { "max": { "field": "http.response.status_code"}},
+      "total_errors": {
+        "scripted_metric": {
+          "init_script": "state.errors=0",
+          "map_script": """
+            if (doc['processor.event'].value == 'error'){
+              state.errors += 1
+            }
+            """,
+          "combine_script": """
+            return state.errors
+          """,
+          "reduce_script": """
+            short total_errors = 0;
+            for (s in states){
+              if (s != null) {
+                total_errors += s
+              }
+            }
+            if (total_errors > 0){
+              return total_errors;
+            }
+            """
+        }
+      },
+      "transaction.name": {
+        "scripted_metric": {
+          "init_script": "state.transaction_name=''",
+          "map_script": """
+            if (doc['parent.id'].size()==0 && doc['transaction.name'].size() != 0){
+              state.transaction_name = doc['transaction.name'].value
+            }
+            """,
+          "combine_script": """
+            return state.transaction_name
+          """,
+          "reduce_script": """
+            for (s in states){
+              if (s != null && s != "") {
+                return s
+              }
+            }
+            """
+        }
+      },
+      "service.name": {
+        "scripted_metric": {
+          "init_script": "state.service_name=''",
+          "map_script": """
+            if (doc['parent.id'].size()==0 && doc['service.name'].size() != 0){
+              state.service_name = doc['service.name'].value
+            }
+            """,
+          "combine_script": """
+            return state.service_name
+          """,
+          "reduce_script": """
+            for (s in states){
+              if (s != null && s != "") {
+                return s
+              }
+            }
+            """
+        }
+      }
+    }
+  }
+}
+
+
+########### One Time Transform transaction docs into transformed tmp index
+
+DELETE /interesting_transformed_apm_events
+PUT /interesting_transformed_apm_events
+{
+  "mappings": {
+    "properties": {
+      "trace.id": {
+        "type": "keyword"
+      },
+      "service.name": {
+        "type": "keyword"
+      },
+      "transaction.name": {
+        "type": "keyword"
+      },
+      "trace_priority": {
+        "type": "rank_feature"
+      },
+      "max_latency_anomaly_score": {
+        "type": "rank_feature"
+      },
+      "total_errors": {
+        "type": "rank_feature"
+      }
+    }
+  }
+}
+
+GET interesting_transformed_apm_events/_mapping
+GET interesting_transformed_apm_events/_count
+
+DELETE _transform/interesting_transform_apm_events/
+PUT _transform/interesting_transform_apm_events/
+{
+  "description": "Tailbased sampling test transform - transactions and errors",
+  "source": {
+    "index": ["tmpapm*transaction*", "tmpapm*error*"]
+  },
+  "dest": {
+    "index": "interesting_transformed_apm_events",
+    "pipeline": "apm_remove_non_positive"
+  },
+  "pivot": {
+    "group_by": {
+      "trace.id": {
+        "terms": {
+          "field": "trace.id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_latency_anomaly_score": { "sum": { "field": "transaction.duration.us"}},
+      "trace_priority": { "max": { "field": "http.response.status_code"}},
+      "total_errors": {
+        "scripted_metric": {
+          "init_script": "state.errors=0",
+          "map_script": """
+            if (doc['processor.event'].value == 'error'){
+              state.errors += 1
+            }
+            """,
+          "combine_script": """
+            return state.errors
+          """,
+          "reduce_script": """
+            short total_errors = 0;
+            for (s in states){
+              if (s != null) {
+                total_errors += s
+              }
+            }
+            if (total_errors > 0){
+              return total_errors;
+            }
+            """
+        }
+      },
+      "transaction.name": {
+        "scripted_metric": {
+          "init_script": "state.transaction_name=''",
+          "map_script": """
+            if (doc['parent.id'].size()==0 && doc['transaction.name'].size() != 0){
+              state.transaction_name = doc['transaction.name'].value
+            }
+            """,
+          "combine_script": """
+            return state.transaction_name
+          """,
+          "reduce_script": """
+            for (s in states){
+              if (s != null && s != "") {
+                return s
+              }
+            }
+            """
+        }
+      },
+      "service.name": {
+        "scripted_metric": {
+          "init_script": "state.service_name=''",
+          "map_script": """
+            if (doc['parent.id'].size()==0 && doc['service.name'].size() != 0){
+              state.service_name = doc['service.name'].value
+            }
+            """,
+          "combine_script": """
+            return state.service_name
+          """,
+          "reduce_script": """
+            for (s in states){
+              if (s != null && s != "") {
+                return s
+              }
+            }
+            """
+        }
+      }
+    }
+  }
+}
+
+####################################
+
+GET interesting_transformed_apm_events/_count
+GET interesting_transformed_apm_events_cont/_count
+
+
+GET interesting_transformed_apm_events/_search
+GET interesting_transformed_apm_events_cont/_search
+
+GET  *interesting_transformed*/_count
+
+
+GET  interesting_transformed_apm_events/_search
+{
+  "query": {
+    "exists": {
+      "field": "trace_priority"
+    }
+  }
+}
+GET  interesting_transformed_apm_events/_search
+{
+  "query": {
+    "exists": {
+      "field": "max_latency_anomaly_score"
+    }
+  }
+}
+
+GET  interesting_transformed*/_search
+{
+  "query": {
+    "bool": {
+      "must_not": [
+        {
+          "exists": {
+            "field": "max_latency_anomaly_score"
+          }
+        }
+      ]
+    }
+  }
+}
+
+
+GET  interesting_transformed_apm_events/_search
+{
+  "query": {
+    "exists": {
+      "field": "total_errors"
+    }
+  }
+}
+
+
+GET tmpapm-8.0.0-error-2020.02.11/_search
+{
+  "query": {
+    "exists": {
+      "field": "trace.id"
+    }
+  }
+}
+GET tmpapm-8.0.0-error-2020.02.11/_search
+{
+  "query": {
+    "bool": {
+      "must_not": [
+        {
+          "exists": {
+            "field": "trace.id"
+          }
+        }
+      ]
+    }
+  }
+}
+
+
+GET tmpapm*transaction*,tmpapm*error*/_search
+{
+  "query": {
+    "term": {
+      "processor.event": {
+        "value": "error"
+      }
+    }
+  }
+}
+
+GET tmpapm*transaction*,tmpapm*error*/_search
+{
+  "query": {
+    "term": {
+      "trace.id": {
+        "value": "b6ee362cf0d3da88868c25cbc386552f"
+      }
+    }
+  }
+}
+
+GET interesting_transformed_apm_events/_search
+{
+  "query": {
+    "term": {
+      "trace.id": {
+        "value": "b6ee362cf0d3da88868c25cbc386552f"
+      }
+    }
+  }
+}
+
+GET tmpapm-8.0.0-transaction-2020.02.12/_doc/MOutPn4-ycixqkspSwOXCkMAAAAAAAAA'
+
+GET *apm*/_search
+{
+  "query": {
+    "term": {
+      "trace.id": {
+        "value": "MOutPn4-ycixqkspSwOXCkMAAAAAAAAA'"
+      }
+    }
+  }
+}
+
+GET tmpapm*/_search
+{
+  "query": {
+    "bool": {
+      "filter": {
+        "range": {
+          "transaction.duration.ms": {
+            "lte": 100
+          }
+        }
+      }
+    }
+  }
+}
