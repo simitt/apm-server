@@ -113,6 +113,7 @@ func (c *Config) SelectorConfig() (*libcommon.Config, error) {
 
 }
 
+//TODO(simitt): ignore custom config if `apm-server.ilm.setup.enabled: false` ?
 func (m *Mappings) Unpack(cfg *libcommon.Config) error {
 	var mappings []Mapping
 	if err := cfg.Unpack(&mappings); err != nil {
