@@ -505,15 +505,26 @@ apm-server:
 # By default template loading is enabled and the template is loaded.
 # These settings can be adjusted to load your own template or overwrite existing ones.
 
+# DEPRECATED: `setup.template.enabled` (will be removed in 8.0)
+# Use `apm-server.ilm.setup.enabled` instead.
 # Set to false to disable template loading.
 #setup.template.enabled: true
 
-# Template name. By default the template name is "apm-%{[observer.version]}"
+# DEPRECATED: `setup.template.overwrite` (will be removed in 8.0)
+# Use `apm-server.ilm.setup.overwrite` instead.
+# Overwrite existing template.
+#setup.template.overwrite: false
+
+# DEPRECATED: `setup.template.name` (will be removed in 8.0)
+# The template name will be auto-derived from `apm-server.ilm.setup.mapping.*` settings.
+# Only used for unmanaged indices. By default the template name is "apm-%{[observer.version]}"
 # The template name and pattern has to be set in case the elasticsearch index pattern is modified,
 # or the `apm-server.ilm.setup.mapping` rollover_aliases are changed.
 #setup.template.name: "apm-%{[observer.version]}"
 
-# Template pattern. By default the template pattern is "apm-%{[observer.version]}-*" to apply to the default index settings.
+# DEPRECATED: `setup.template.pattern` (will be removed in 8.0)
+# The template pattern will be auto-derived from `apm-server.ilm.setup.mapping.*` settings.
+# Only used for unmanaged indices. By default the template pattern is "apm-%{[observer.version]}-*".
 # The first part is the version of apm-server and then -* is used to match all daily indices.
 # The template name and pattern has to be set in case the elasticsearch index pattern is modified,
 # or the `apm-server.ilm.setup.mapping` rollover_aliases are changed.
@@ -522,12 +533,8 @@ apm-server:
 # Path to fields.yml file to generate the template.
 #setup.template.fields: "${path.config}/fields.yml"
 
-# Overwrite existing template.
-#setup.template.overwrite: false
-
 # Elasticsearch template settings.
 #setup.template.settings:
-
   # A dictionary of settings to place into the settings.index dictionary
   # of the Elasticsearch template. For more details, please check
   # https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html
@@ -583,12 +590,19 @@ output.elasticsearch:
   # Number of workers per Elasticsearch host.
   #worker: 1
 
+
+  # DEPRECATED: `output.elasticsearch.index` (will be removed in 8.0)
+  # DEPRECATED: `output.elasticsearch.indices` (will be removed in 8.0)
+  # use `apm-server.ilm.setup.*` instead
+  #
   # By using the configuration below, APM documents are stored to separate indices,
   # depending on their `processor.event`:
   # - error
   # - transaction
   # - span
+  # - metric
   # - sourcemap
+  # - onboarding
   #
   # The indices are all prefixed with `apm-%{[observer.version]}`.
   # To allow managing indices based on their age, all indices (except for sourcemaps)
@@ -598,8 +612,10 @@ output.elasticsearch:
   # Be aware that you can only specify one Elasticsearch template.
   # If you modify the index patterns you must also update these configurations accordingly,
   # as they need to be aligned:
-  # * `setup.template.name`
-  # * `setup.template.pattern`
+  # - `setup.template.name`
+  # - `setup.template.pattern`
+  # DEPRECATED: `output.elasticsearch.index` (will be removed in 8.0)
+  # DEPRECATED: `output.elasticsearch.indices` (will be removed in 8.0)
   #index: "apm-%{[observer.version]}-%{+yyyy.MM.dd}"
   #indices:
   #  - index: "apm-%{[observer.version]}-sourcemap"
