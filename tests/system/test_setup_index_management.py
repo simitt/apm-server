@@ -20,7 +20,7 @@ class IdxMgmt(object):
 
     def wait_until_created(self, templates=None, aliases=None, policies=None):
         if templates is None:
-            templates = [self._index] + self._event_indices
+            templates = self._event_indices
         if aliases is None:
             aliases = self._event_indices
         if policies is None:

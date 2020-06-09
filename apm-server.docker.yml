@@ -407,6 +407,10 @@ apm-server:
         #- event_type: "onboarding"
         #  policy_name: "apm-rollover-50-gb"
         #  index-suffix: ""
+        #the policy for the default (fallback) index can be customized, but not the index-suffix
+        #- event_type: "default"
+        #  policy_name: "apm-rollover-50-gb"
+
 
       # Configured policies are added to pre-defined default policies.
       # If a policy with the same name as a default policy is configured, the configured policy overwrites the default policy.

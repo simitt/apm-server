@@ -95,7 +95,7 @@ func (m *manager) Setup(loadTemplate, loadILM libidxmgmt.LoadMode) error {
 	m.supporter.templateConfig.Enabled = templateFeature.enabled
 	m.supporter.templateConfig.Overwrite = templateFeature.overwrite
 
-	//(1) load general apm template
+	//(1) load default apm template only if ILM is disabled
 	if err := m.loadTemplate(templateFeature, ilmFeature); err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (m *manager) ilmFeature(loadMode libidxmgmt.LoadMode) feature {
 	return f
 }
 
-func (m *manager) loadTemplate(templateFeature, ilmFeature feature) error {
+func (m *manager) loadTemplate(templateFeature, _ feature) error {
 	if !templateFeature.load {
 		return nil
 	}
@@ -200,7 +200,7 @@ func (m *manager) loadTemplate(templateFeature, ilmFeature feature) error {
 	// default index prefix for managed and unmanaged indices;
 	// in case the index/rollover_alias names were customized
 	if m.supporter.templateConfig.Name == "" && m.supporter.templateConfig.Pattern == "" {
-		m.supporter.templateConfig.Name = common.APMFallbackPrefix
+		m.supporter.templateConfig.Name = common.FallbackIndex
 		m.supporter.log.Infof("Set setup.template.name to '%s'.", m.supporter.templateConfig.Name)
 		m.supporter.templateConfig.Pattern = m.supporter.templateConfig.Name + "*"
 		m.supporter.log.Infof("Set setup.template.pattern to '%s'.", m.supporter.templateConfig.Pattern)
