@@ -43,7 +43,7 @@ func (cfg *Config) SelectorConfig() (*libcommon.Config, error) {
 	// set defaults
 	if cfg.Index == "" {
 		// set fallback default index
-		idcsCfg.SetString("index", -1, common.FallbackIndex)
+		idcsCfg.SetString("index", -1, common.DailyFallbackIndex)
 
 		// set default indices if not set
 		if cfg.Indices == nil {

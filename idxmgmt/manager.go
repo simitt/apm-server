@@ -200,7 +200,7 @@ func (m *manager) loadTemplate(templateFeature, ilmFeature feature) error {
 	// default index prefix for managed and unmanaged indices;
 	// in case the index/rollover_alias names were customized
 	if m.supporter.templateConfig.Name == "" && m.supporter.templateConfig.Pattern == "" {
-		m.supporter.templateConfig.Name = common.APMPrefix
+		m.supporter.templateConfig.Name = common.APMFallbackPrefix
 		m.supporter.log.Infof("Set setup.template.name to '%s'.", m.supporter.templateConfig.Name)
 		m.supporter.templateConfig.Pattern = m.supporter.templateConfig.Name + "*"
 		m.supporter.log.Infof("Set setup.template.pattern to '%s'.", m.supporter.templateConfig.Pattern)

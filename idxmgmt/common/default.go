@@ -17,11 +17,17 @@
 
 package common
 
-const APMPrefix = "apm-%{[observer.version]}"
+const (
+	apmFallbackPrefix = "-default"
+	APMPrefix         = "apm-%{[observer.version]}"
+	APMFallbackPrefix = APMPrefix + apmFallbackPrefix
+)
 
 var (
-	EventTypes    = []string{"span", "transaction", "error", "metric", "profile"}
-	FallbackIndex = "apm-%{[observer.version]}-%{+yyyy.MM.dd}"
+	EventTypes = []string{"span", "transaction", "error", "metric", "profile"}
+	//TODO(simitt): handle default as event
+	FallbackIndex      = APMFallbackPrefix + "-%{+yyyy.MM.dd}"
+	DailyFallbackIndex = FallbackIndex
 )
 
 func ConditionalSourcemapIndex() map[string]interface{} {
