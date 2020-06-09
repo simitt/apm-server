@@ -114,8 +114,8 @@ func TestIndexSupport_BuildSelector(t *testing.T) {
 
 	cases := map[string]testdata{
 		"DefaultIndex": {
-			noIlm:   fmt.Sprintf("apm-7.0.0-%s", day),
-			withIlm: fmt.Sprintf("apm-7.0.0-%s", day),
+			noIlm:   fmt.Sprintf("apm-7.0.0-default-%s", day),
+			withIlm: fmt.Sprintf("apm-7.0.0-default-%s", day),
 			fields:  common.MapStr{},
 		},
 		"DefaultOnboarding": {
@@ -155,6 +155,7 @@ func TestIndexSupport_BuildSelector(t *testing.T) {
 			meta:    common.MapStr{"alias": "apm-7.0.0-meta", "index": "test-123"},
 			cfg:     common.MapStr{"output.elasticsearch.index": "apm-customized"},
 		},
+		//TODO(simitt): how would that meta information work with ILM?
 		"MetaInformationIndex": {
 			noIlm:   fmt.Sprintf("apm-7.0.0-%s", day),
 			withIlm: fmt.Sprintf("apm-7.0.0-%s", day), //meta overwrites ilm
@@ -170,13 +171,13 @@ func TestIndexSupport_BuildSelector(t *testing.T) {
 			cfg:     common.MapStr{"output.elasticsearch.index": "apm-customized"},
 		},
 		"DifferentCustomIndices": {
-			noIlm:   fmt.Sprintf("apm-7.0.0-%s", day),
-			withIlm: "apm-7.0.0-metric",               //custom index ignored when ilm enabled
-			ilmAuto: fmt.Sprintf("apm-7.0.0-%s", day), //custom respected for ilm auto
+			noIlm:   fmt.Sprintf("apm-7.0.0-default-%s", day),
+			withIlm: "apm-7.0.0-metric",
+			ilmAuto: fmt.Sprintf("apm-7.0.0-default-%s", day),
 			fields:  common.MapStr{"processor.event": "metric"},
 			cfg: common.MapStr{
 				"output.elasticsearch.indices": []common.MapStr{{
-					"index": "apm-custom-%{[observer.version]}-metric",
+					"index": "apm-custom-%{[observer.version]}-error",
 					"when": map[string]interface{}{
 						"contains": map[string]interface{}{"processor.event": "error"}}}},
 			},
