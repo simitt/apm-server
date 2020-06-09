@@ -101,6 +101,7 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 		return nil
 	}
 	var policiesLoaded []string
+	isLegacy := m.supporter.templateConfig.Legacy || !m.clientHandler.SupportsDataStream()
 	for _, ilmSupporter := range m.supporter.ilmSupporters {
 		// Load event type template
 		name := ilmSupporter.Alias().Name
@@ -112,21 +113,29 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 			m.supporter.log.Infof("Add mappings to template %v.", name)
 			fields = m.assets.Fields(m.supporter.info.Beat)
 		}
+		templateConfig.Name = name
+		templateConfig.Pattern = fmt.Sprintf("%s*", name)
 		if ilmFeature.load {
 			templateConfig.Enabled = true
-			templateConfig.Name = name
-			templateConfig.Pattern = fmt.Sprintf("%s*", name)
 			templateConfig.Overwrite = ilmFeature.overwrite
 
 			if ilmFeature.enabled {
 				templateConfig.Settings.Index = map[string]interface{}{
-					"lifecycle.name":           ilmSupporter.Policy().Name,
-					"lifecycle.rollover_alias": name,
+					"lifecycle": map[string]interface{}{
+						"name":           ilmSupporter.Policy().Name,
+						"rollover_alias": name,
+					},
 				}
 			}
 		}
-		if err := m.loadTemplate(templateConfig, fields); err != nil {
-			return err
+		if isLegacy {
+			if err := m.loadLegacyTemplate(templateConfig, fields); err != nil {
+				return err
+			}
+		} else {
+			if err := m.loadIndexTemplate(templateConfig, fields); err != nil {
+				return err
+			}
 		}
 
 		// Load event type policy, respecting ILM settings
@@ -137,8 +146,10 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 
 		// Load event type specific write alias,
 		// NOTE: ensure to create write alias AFTER template creation
-		if err = m.loadAlias(ilmFeature, ilmSupporter); err != nil {
-			return err
+		if isLegacy {
+			if err = m.loadAlias(ilmFeature, ilmSupporter); err != nil {
+				return err
+			}
 		}
 	}
 	m.supporter.log.Info("Finished managed index setup.")
@@ -148,6 +159,7 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 // setupUnmanaged is deprecated
 // TODO(simitt): deprecate unmanaged indices
 func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
+	isLegacy := m.supporter.templateConfig.Legacy || !m.clientHandler.SupportsDataStream()
 	if templateFeature.load {
 		// if not customized, set the APM template name and pattern to the default
 		if m.supporter.templateConfig.Name == "" {
@@ -158,8 +170,16 @@ func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
 			m.supporter.templateConfig.Pattern = m.supporter.templateConfig.Name + "*"
 			m.supporter.log.Infof("Set setup.template.pattern to '%s'.", m.supporter.templateConfig.Pattern)
 		}
-		if err := m.loadTemplate(m.supporter.templateConfig, m.assets.Fields(m.supporter.info.Beat)); err != nil {
-			return err
+		if isLegacy {
+			config := m.supporter.templateConfig
+			config.Priority = 100
+			if err := m.loadLegacyTemplate(config, m.assets.Fields(m.supporter.info.Beat)); err != nil {
+				return err
+			}
+		} else {
+			if err := m.loadIndexTemplate(m.supporter.templateConfig, m.assets.Fields(m.supporter.info.Beat)); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -170,11 +190,34 @@ func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
 		// load event type specific template without index lifecycle information
 		templateConfig := ilm.Template(false, ilmFeature.overwrite,
 			ilmSupporter.Alias().Name, ilmSupporter.Policy().Name)
-		if err := m.loadTemplate(templateConfig, nil); err != nil {
-			return err
+		if isLegacy {
+			if err := m.loadLegacyTemplate(templateConfig, nil); err != nil {
+				return err
+			}
+		} else {
+			if err := m.loadIndexTemplate(templateConfig, nil); err != nil {
+				return err
+			}
 		}
 	}
 	m.supporter.log.Info("Finished unmanaged index setup.")
+	return nil
+}
+
+func (m *manager) loadIndexTemplate(config libtemplate.TemplateConfig, fields []byte) error {
+	if err := m.clientHandler.LoadIndexTemplate(config, m.supporter.info, fields, m.supporter.migration); err != nil {
+		return errors.Wrapf(err, "error loading template %+v", config.Name)
+	}
+	m.supporter.log.Infof("Finished template setup for %s.", config.Name)
+	return nil
+}
+
+func (m *manager) loadLegacyTemplate(config libtemplate.TemplateConfig, fields []byte) error {
+	m.supporter.log.Infof("**Deprecation Warning**: legacy templates are deprecated and support will be removed in 8.0.0.")
+	if err := m.clientHandler.LoadLegacyTemplate(config, m.supporter.info, fields, m.supporter.migration); err != nil {
+		return errors.Wrapf(err, "error loading template %+v", config.Name)
+	}
+	m.supporter.log.Infof("Finished template setup for %s.", config.Name)
 	return nil
 }
 
@@ -240,14 +283,6 @@ func (m *manager) ilmFeature(loadMode libidxmgmt.LoadMode) feature {
 	f.info = information(f)
 	f.err = err
 	return f
-}
-
-func (m *manager) loadTemplate(config libtemplate.TemplateConfig, fields []byte) error {
-	if err := m.clientHandler.Load(config, m.supporter.info, fields, m.supporter.migration); err != nil {
-		return errors.Wrapf(err, "error loading template %+v", config.Name)
-	}
-	m.supporter.log.Infof("Finished template setup for %s.", config.Name)
-	return nil
 }
 
 func (m *manager) loadPolicy(ilmFeature feature, ilmSupporter libilm.Supporter, policiesLoaded []string) ([]string, error) {

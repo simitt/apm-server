@@ -83,3 +83,5 @@ replace (
 	github.com/tonistiigi/fifo => github.com/containerd/fifo v0.0.0-20190816180239-bda0ff6ed73c
 	k8s.io/client-go => k8s.io/client-go v0.18.3
 )
+
+replace github.com/elastic/beats/v7 => /Users/simitt/coding/go/elastic/beats

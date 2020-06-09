@@ -474,6 +474,11 @@ apm-server:
 # By default template loading is enabled and the template is loaded.
 # These settings can be adjusted to load your own template or overwrite existing ones.
 
+# DEPRECATED: allows to fall back to use legacy templates
+# Will be removed in `8.0`
+# Defaults to `false`.
+#setup.template.legacy: false
+
 # DEPRECATED: `setup.template.enabled` (will be removed in 8.0)
 # Use `apm-server.ilm.setup.enabled` instead.
 # Set to false to disable template loading.
@@ -484,7 +489,7 @@ apm-server:
 # Overwrite existing template.
 #setup.template.overwrite: false
 
-# DEPRECATED: `setup.template.name` (will be removed in 8.0)
+# DEPRECATED: `setup.template.mname` (will be removed in 8.0)
 # The template name will be auto-derived from `apm-server.ilm.setup.mapping.*` settings.
 # Only used for unmanaged indices. By default the template name is "apm-%{[observer.version]}"
 # The template name and pattern has to be set in case the elasticsearch index pattern is modified,
@@ -511,6 +516,7 @@ apm-server:
     #codec: best_compression
     #number_of_routing_shards: 30
     #mapping.total_fields.limit: 2000
+
 
 #============================= Elastic Cloud =============================
 

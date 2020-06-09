@@ -533,8 +533,7 @@ Contents of "LICENSE":
 
 --------------------------------------------------------------------
 Dependency: github.com/elastic/beats/v7
-Version: v7.0.0
-Revision: 794ed81680a9
+Replacement: /Users/simitt/coding/go/elastic/beats
 License type (autodetected): Apache-2.0
 
 --------------------------------------------------------------------
