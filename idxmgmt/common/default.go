@@ -18,16 +18,15 @@
 package common
 
 const (
-	apmFallbackPrefix = "-default"
-	APMPrefix         = "apm-%{[observer.version]}"
-	APMFallbackPrefix = APMPrefix + apmFallbackPrefix
+	DefaultPrefix = "default"
+	APMPrefix     = "apm-%{[observer.version]}"
 )
 
 var (
-	EventTypes = []string{"span", "transaction", "error", "metric", "profile", "sourcemap", "onboarding"}
-	//TODO(simitt): handle default as event
-	FallbackIndex      = APMFallbackPrefix + "-%{+yyyy.MM.dd}"
-	DailyFallbackIndex = FallbackIndex
+	EventTypes = []string{"span", "transaction", "error", "metric", "profile", "sourcemap", "onboarding",
+		DefaultPrefix}
+	FallbackIndex      = APMPrefix + "-" + DefaultPrefix
+	DailyFallbackIndex = FallbackIndex + "-%{+yyyy.MM.dd}"
 )
 
 func Condition(event string, index string) map[string]interface{} {

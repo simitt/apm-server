@@ -115,7 +115,7 @@ func TestIndexSupport_BuildSelector(t *testing.T) {
 	cases := map[string]testdata{
 		"DefaultIndex": {
 			noIlm:   fmt.Sprintf("apm-7.0.0-default-%s", day),
-			withIlm: fmt.Sprintf("apm-7.0.0-default-%s", day),
+			withIlm: "apm-7.0.0-default",
 			fields:  common.MapStr{},
 		},
 		"DefaultOnboarding": {

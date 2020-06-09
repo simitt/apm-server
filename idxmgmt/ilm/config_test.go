@@ -136,6 +136,8 @@ func TestConfig_Valid(t *testing.T) {
 							Index: "apm-9.9.9-sourcemap"},
 						"onboarding": {EventType: "onboarding", PolicyName: policyRollover50gb,
 							Index: "apm-9.9.9-onboarding"},
+						"default": {EventType: "default", PolicyName: policyRollover50gb,
+							Index: "apm-9.9.9-default"},
 					},
 					Policies: map[string]Policy{
 						policyRollover30days50gb: defaultPolicies()[policyRollover30days50gb],
@@ -167,6 +169,19 @@ func TestConfig_Valid(t *testing.T) {
 						m := defaultMappingsResolved(mockBeatInfo)
 						m["error"] = Mapping{EventType: "error", PolicyName: "errorPolicy",
 							Index: "apm-9.9.9-error"}
+						return m
+					}(),
+					Policies: defaultPolicies(),
+				}},
+		},
+		{name: "ignore configuration attempt for fallback index suffix",
+			cfg: `{"setup":{"mapping":[{"event_type":"default","policy_name":"apm-rollover-30-days","index_suffix":"production"}]}}`,
+			expected: Config{Mode: libilm.ModeAuto,
+				Setup: Setup{Enabled: true, Overwrite: false, RequirePolicy: true,
+					Mappings: func() map[string]Mapping {
+						m := defaultMappingsResolved(mockBeatInfo)
+						m["default"] = Mapping{EventType: "default", PolicyName: "apm-rollover-30-days",
+							Index: "apm-9.9.9-default"}
 						return m
 					}(),
 					Policies: defaultPolicies(),

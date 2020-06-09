@@ -19,9 +19,8 @@ index_transaction = "apm-{}-transaction".format(apm_version)
 index_span = "apm-{}-span".format(apm_version)
 index_metric = "apm-{}-metric".format(apm_version)
 index_profile = "apm-{}-profile".format(apm_version)
-default_aliases = [index_error, index_transaction, index_span,
-                   index_metric, index_profile, index_smap, index_onboarding]
-default_indices = [index_name] + default_aliases
+default_aliases = [index_error, index_transaction, index_span,index_metric,
+                   index_profile, index_smap, index_onboarding, index_name]
 
 
 def cleanup(es, delete_indices=[apm_prefix], delete_templates=[apm_prefix],

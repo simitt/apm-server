@@ -125,6 +125,11 @@ func (m *Mappings) Unpack(cfg *libcommon.Config) error {
 			}
 			mapping.Index = existing.Index
 		}
+		if mapping.EventType == common.DefaultPrefix {
+			// do not allow configuration of default fallback index suffix
+			// this would complicate the setup, and there is no known use case for it
+			mapping.IndexSuffix = ""
+		}
 		if mapping.IndexSuffix != "" {
 			mapping.Index = fmt.Sprintf("%s-%s", mapping.Index, mapping.IndexSuffix)
 		}
@@ -212,9 +217,11 @@ func applyStaticFmtstr(info beat.Info, s string) (string, error) {
 func defaultMappings() map[string]Mapping {
 	m := map[string]Mapping{}
 	for _, et := range common.EventTypes {
-		policyName := policyRollover30days50gb
-		if et == "sourcemap" || et == "onboarding" {
+		var policyName string
+		if et == "sourcemap" || et == "onboarding" || et == "default" {
 			policyName = policyRollover50gb
+		} else {
+			policyName = policyRollover30days50gb
 		}
 		m[et] = Mapping{EventType: et, PolicyName: policyName,
 			Index: fmt.Sprintf("%s-%s", common.APMPrefix, et)}
@@ -275,6 +282,9 @@ func defaultPolicies() map[string]Policy {
 func (c *Config) conditionalIndices() []map[string]interface{} {
 	var conditions []map[string]interface{}
 	for _, m := range c.Setup.Mappings {
+		if m.EventType == "default" {
+			continue
+		}
 		conditions = append(conditions, common.Condition(m.EventType, m.Index))
 	}
 	return conditions

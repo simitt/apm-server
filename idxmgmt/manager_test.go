@@ -231,12 +231,12 @@ func TestManager_SetupILM(t *testing.T) {
 	var testCasesSetupEnabled = map[string]testCase{
 		"Default": {
 			loadMode:            libidxmgmt.LoadModeEnabled,
-			templatesILMEnabled: 6, policiesLoaded: 2, aliasesLoaded: 6,
+			templatesILMEnabled: 7, policiesLoaded: 2, aliasesLoaded: 7,
 		},
 		"ILM disabled": {
 			cfg:                  common.MapStr{"apm-server.ilm.enabled": false},
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 6,
+			templatesILMDisabled: 7,
 		},
 		"ILM setup enabled no overwrite": {
 			cfg: common.MapStr{
@@ -246,7 +246,7 @@ func TestManager_SetupILM(t *testing.T) {
 				"apm-server.ilm.setup.policies":  []common.MapStr{policyRollover1Day},
 			},
 			loadMode:            libidxmgmt.LoadModeEnabled,
-			templatesILMEnabled: 6, policiesLoaded: 2, aliasesLoaded: 6,
+			templatesILMEnabled: 7, policiesLoaded: 2, aliasesLoaded: 7,
 		},
 		"ILM overwrite": {
 			cfg: common.MapStr{
@@ -255,20 +255,20 @@ func TestManager_SetupILM(t *testing.T) {
 				"apm-server.ilm.setup.policies":  []common.MapStr{policyRollover1Day},
 			},
 			loadMode:            libidxmgmt.LoadModeEnabled,
-			templatesILMEnabled: 7, policiesLoaded: 3, aliasesLoaded: 6,
+			templatesILMEnabled: 8, policiesLoaded: 3, aliasesLoaded: 7,
 		},
 		"LoadModeOverwrite": {
 			loadMode:            libidxmgmt.LoadModeOverwrite,
-			templatesILMEnabled: 7, policiesLoaded: 2, aliasesLoaded: 6,
+			templatesILMEnabled: 8, policiesLoaded: 2, aliasesLoaded: 7,
 		},
 		"LoadModeForce ILM enabled": {
 			loadMode:            libidxmgmt.LoadModeForce,
-			templatesILMEnabled: 7, policiesLoaded: 2, aliasesLoaded: 6,
+			templatesILMEnabled: 8, policiesLoaded: 2, aliasesLoaded: 7,
 		},
 		"LoadModeForce ILM disabled": {
 			cfg:                  common.MapStr{"apm-server.ilm.enabled": false},
 			loadMode:             libidxmgmt.LoadModeForce,
-			templatesILMDisabled: 7,
+			templatesILMDisabled: 8,
 		},
 		"ILM overwrite LoadModeDisabled": {
 			cfg:                 common.MapStr{"apm-server.ilm.setup.overwrite": true},
@@ -296,12 +296,12 @@ func TestManager_SetupILM(t *testing.T) {
 		"SetupDisabled LoadModeForce ILM enabled": {
 			cfg:                 common.MapStr{"apm-server.ilm.setup.enabled": false},
 			loadMode:            libidxmgmt.LoadModeForce,
-			templatesILMEnabled: 7, policiesLoaded: 2, aliasesLoaded: 6,
+			templatesILMEnabled: 8, policiesLoaded: 2, aliasesLoaded: 7,
 		},
 		"SetupDisabled LoadModeForce ILM disabled": {
 			cfg:                  common.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.enabled": false},
 			loadMode:             libidxmgmt.LoadModeForce,
-			templatesILMDisabled: 7,
+			templatesILMDisabled: 8,
 		},
 		"LoadModeDisabled": {
 			loadMode: libidxmgmt.LoadModeDisabled,
@@ -312,19 +312,19 @@ func TestManager_SetupILM(t *testing.T) {
 		"Default ES Unsupported ILM": {
 			version:              "6.2.0",
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 6,
+			templatesILMDisabled: 7,
 		},
 		"SetupOverwrite Default ES Unsupported ILM": {
 			cfg:                  common.MapStr{"apm-server.ilm.setup.overwrite": "true"},
 			version:              "6.2.0",
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 7,
+			templatesILMDisabled: 8,
 		},
 		"ILM True ES Unsupported ILM": {
 			cfg:                  common.MapStr{"apm-server.ilm.enabled": "true"},
 			loadMode:             libidxmgmt.LoadModeEnabled,
 			version:              "6.2.0",
-			templatesILMDisabled: 6,
+			templatesILMDisabled: 7,
 		},
 		"Default ES Unsupported ILM setup disabled": {
 			cfg:      common.MapStr{"apm-server.ilm.setup.enabled": false},
@@ -346,7 +346,7 @@ func TestManager_SetupILM(t *testing.T) {
 				"setup.template.pattern":       "custom",
 				"output.elasticsearch.index":   "custom"},
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 6,
+			templatesILMDisabled: 7,
 		},
 		"ESIndicesConfigured": {
 			cfg: common.MapStr{
@@ -359,7 +359,7 @@ func TestManager_SetupILM(t *testing.T) {
 					"when": map[string]interface{}{
 						"contains": map[string]interface{}{"processor.event": "metric"}}}}},
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 6,
+			templatesILMDisabled: 7,
 		},
 		"ESIndexConfigured setup disabled": {
 			cfg: common.MapStr{
@@ -397,7 +397,7 @@ func TestManager_SetupILM(t *testing.T) {
 			// templates for all event types are loaded
 			// profile, span, and metrics share the same default policy, one policy is loaded
 			// sourcemap has its own default policy, which is also loaded
-			templatesILMEnabled: 6, policiesLoaded: 2, aliasesLoaded: 6,
+			templatesILMEnabled: 7, policiesLoaded: 2, aliasesLoaded: 7,
 		},
 	}
 
