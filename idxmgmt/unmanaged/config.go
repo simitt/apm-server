@@ -69,7 +69,7 @@ func (cfg *Config) SelectorConfig() (*libcommon.Config, error) {
 
 func conditionalIndices() []map[string]interface{} {
 	conditions := []map[string]interface{}{
-		common.ConditionalOnboardingIndex(),
+		common.Condition("onboarding", common.APMPrefix+"-onboarding-%{+yyyy.MM.dd}"),
 	}
 	for _, k := range common.EventTypes {
 		conditions = append(conditions, common.Condition(k, idxName(k)))

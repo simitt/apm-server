@@ -36,12 +36,12 @@ func TestMakeDefaultSupporter(t *testing.T) {
 
 	s, err := MakeDefaultSupporter(nil, 0, cfg)
 	require.NoError(t, err)
-	assert.Equal(t, 6, len(s))
+	assert.Equal(t, len(common.EventTypes), len(s))
 	var aliases []string
 	for _, sup := range s {
 		aliases = append(aliases, sup.Alias().Name)
 		expectedPolicy := policyRollover30days50gb
-		if strings.Contains(sup.Alias().Name, "sourcemap") {
+		if strings.Contains(sup.Alias().Name, "sourcemap") || strings.Contains(sup.Alias().Name, "onboarding") {
 			expectedPolicy = policyRollover50gb
 		}
 		assert.Equal(t, expectedPolicy, sup.Policy().Name)
