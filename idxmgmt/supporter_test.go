@@ -120,7 +120,7 @@ func TestIndexSupport_BuildSelector(t *testing.T) {
 		},
 		"DefaultOnboarding": {
 			noIlm:   fmt.Sprintf("apm-7.0.0-onboarding-%s", day),
-			withIlm: fmt.Sprintf("apm-7.0.0-onboarding-%s", day),
+			withIlm: "apm-7.0.0-onboarding",
 			fields:  common.MapStr{"processor.event": "onboarding"},
 		},
 		"DefaultError": {

@@ -273,9 +273,7 @@ func defaultPolicies() map[string]Policy {
 }
 
 func (c *Config) conditionalIndices() []map[string]interface{} {
-	conditions := []map[string]interface{}{
-		common.ConditionalOnboardingIndex(),
-	}
+	var conditions []map[string]interface{}
 	for _, m := range c.Setup.Mappings {
 		conditions = append(conditions, common.Condition(m.EventType, m.Index))
 	}

@@ -6,7 +6,7 @@ from es_helper import cleanup, wait_until_policies, wait_until_aliases, wait_unt
 from es_helper import default_policy, index_prefix, index_name
 from es_helper import index_error, index_transaction, index_span, index_metric, index_profile
 
-EVENT_NAMES = ('error', 'span', 'transaction', 'metric', 'profile', 'sourcemap')
+EVENT_NAMES = ('error', 'span', 'transaction', 'metric', 'profile', 'sourcemap', 'onboarding')
 
 
 class IdxMgmt(object):

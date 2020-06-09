@@ -373,6 +373,9 @@ apm-server:
         #- event_type: "sourcemap"
         #  policy_name: "apm-rollover-50-gb"
         #  index_suffix: ""
+        #- event_type: "onboarding"
+        #  policy_name: "apm-rollover-50-gb"
+        #  index_suffix: ""
 
       # Configured policies are added to pre-defined default policies.
       # If a policy with the same name as a default policy is configured, the configured policy overwrites the default policy.

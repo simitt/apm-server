@@ -24,15 +24,11 @@ const (
 )
 
 var (
-	EventTypes = []string{"span", "transaction", "error", "metric", "profile", "sourcemap"}
+	EventTypes = []string{"span", "transaction", "error", "metric", "profile", "sourcemap", "onboarding"}
 	//TODO(simitt): handle default as event
 	FallbackIndex      = APMFallbackPrefix + "-%{+yyyy.MM.dd}"
 	DailyFallbackIndex = FallbackIndex
 )
-
-func ConditionalOnboardingIndex() map[string]interface{} {
-	return Condition("onboarding", APMPrefix+"-onboarding-%{+yyyy.MM.dd}")
-}
 
 func Condition(event string, index string) map[string]interface{} {
 	return map[string]interface{}{

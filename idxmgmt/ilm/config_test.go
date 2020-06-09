@@ -134,6 +134,8 @@ func TestConfig_Valid(t *testing.T) {
 							Index: "apm-9.9.9-profile"},
 						"sourcemap": {EventType: "sourcemap", PolicyName: policyRollover50gb,
 							Index: "apm-9.9.9-sourcemap"},
+						"onboarding": {EventType: "onboarding", PolicyName: policyRollover50gb,
+							Index: "apm-9.9.9-onboarding"},
 					},
 					Policies: map[string]Policy{
 						policyRollover30days50gb: defaultPolicies()[policyRollover30days50gb],
