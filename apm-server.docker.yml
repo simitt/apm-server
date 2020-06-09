@@ -401,6 +401,9 @@ apm-server:
         #- event_type: "metric"
         #  policy_name: "apm-rollover-30-days"
         #  index-suffix: ""
+        #- event_type: "sourcemap"
+        #  policy_name: "apm-rollover-50-gb"
+        #  index-suffix: ""
 
       # Configured policies are added to pre-defined default policies.
       # If a policy with the same name as a default policy is configured, the configured policy overwrites the default policy.
@@ -421,7 +424,13 @@ apm-server:
                   #set_priority:
                     #priority: 50
                   #readonly: {}
-
+        #- name: "apm-rollover-50-gb"
+          #policy:
+            #phases:
+              #hot:
+                #actions:
+                  #rollover:
+                    #max_size: "50gb"
 
 
   #---------------------------- APM Server - Experimental Jaeger integration ----------------------------

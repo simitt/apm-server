@@ -18,6 +18,7 @@
 package ilm
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,11 +36,15 @@ func TestMakeDefaultSupporter(t *testing.T) {
 
 	s, err := MakeDefaultSupporter(nil, 0, cfg)
 	require.NoError(t, err)
-	assert.Equal(t, 5, len(s))
+	assert.Equal(t, 6, len(s))
 	var aliases []string
 	for _, sup := range s {
 		aliases = append(aliases, sup.Alias().Name)
-		assert.Equal(t, defaultPolicyName, sup.Policy().Name)
+		expectedPolicy := policyRollover30days50gb
+		if strings.Contains(sup.Alias().Name, "sourcemap") {
+			expectedPolicy = policyRollover50gb
+		}
+		assert.Equal(t, expectedPolicy, sup.Policy().Name)
 	}
 	var defaultAliases []string
 	for _, et := range common.EventTypes {

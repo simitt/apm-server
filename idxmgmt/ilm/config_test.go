@@ -122,19 +122,22 @@ func TestConfig_Valid(t *testing.T) {
 			expected: Config{Mode: libilm.ModeAuto,
 				Setup: Setup{Enabled: true, Overwrite: false, RequirePolicy: true,
 					Mappings: map[string]Mapping{
-						"error": {EventType: "error", PolicyName: defaultPolicyName,
+						"error": {EventType: "error", PolicyName: policyRollover30days50gb,
 							Index: "apm-9.9.9-error-mockapm", IndexSuffix: "%{[observer.name]}"},
 						"span": {EventType: "span", PolicyName: "spanPolicy",
 							Index: "apm-9.9.9-span"},
-						"transaction": {EventType: "transaction", PolicyName: defaultPolicyName,
+						"transaction": {EventType: "transaction", PolicyName: policyRollover30days50gb,
 							Index: "apm-9.9.9-transaction"},
-						"metric": {EventType: "metric", PolicyName: defaultPolicyName,
+						"metric": {EventType: "metric", PolicyName: policyRollover30days50gb,
 							Index: "apm-9.9.9-metric-production", IndexSuffix: "production"},
-						"profile": {EventType: "profile", PolicyName: defaultPolicyName,
+						"profile": {EventType: "profile", PolicyName: policyRollover30days50gb,
 							Index: "apm-9.9.9-profile"},
+						"sourcemap": {EventType: "sourcemap", PolicyName: policyRollover50gb,
+							Index: "apm-9.9.9-sourcemap"},
 					},
 					Policies: map[string]Policy{
-						defaultPolicyName: defaultPolicies()[defaultPolicyName],
+						policyRollover30days50gb: defaultPolicies()[policyRollover30days50gb],
+						policyRollover50gb:       defaultPolicies()[policyRollover50gb],
 						"spanPolicy": {Name: "spanPolicy", Body: map[string]interface{}{
 							"policy": map[string]interface{}{"phases": map[string]interface{}{
 								"foo": map[string]interface{}{}}}}},
@@ -147,9 +150,10 @@ func TestConfig_Valid(t *testing.T) {
 				Setup: Setup{Enabled: true, Overwrite: false, RequirePolicy: true,
 					Mappings: defaultMappingsResolved(mockBeatInfo),
 					Policies: map[string]Policy{
-						defaultPolicyName: {Name: defaultPolicyName, Body: map[string]interface{}{
+						policyRollover30days50gb: {Name: policyRollover30days50gb, Body: map[string]interface{}{
 							"policy": map[string]interface{}{"phases": map[string]interface{}{
 								"warm": map[string]interface{}{"min_age": "30d"}}}}},
+						policyRollover50gb: defaultPolicies()[policyRollover50gb],
 					},
 				}},
 		},

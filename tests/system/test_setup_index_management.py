@@ -3,18 +3,19 @@ import logging
 from elasticsearch import Elasticsearch, NotFoundError, RequestError
 from nose.tools import raises
 from es_helper import cleanup, wait_until_policies, wait_until_aliases, wait_until_templates
-from es_helper import default_policy, index_name
+from es_helper import default_policy, index_prefix, index_name
 from es_helper import index_error, index_transaction, index_span, index_metric, index_profile
 
-EVENT_NAMES = ('error', 'span', 'transaction', 'metric', 'profile')
+EVENT_NAMES = ('error', 'span', 'transaction', 'metric', 'profile', 'sourcemap')
 
 
 class IdxMgmt(object):
 
-    def __init__(self, client, index, policies=[default_policy]):
+    def __init__(self, client, prefix, index, policies=[default_policy]):
         self._client = client
+        self._index_prefix = prefix
         self._index = index
-        self._event_indices = ["{}-{}".format(self._index, e) for e in EVENT_NAMES]
+        self._event_indices = ["{}-{}".format(self._index_prefix, e) for e in EVENT_NAMES]
         self.policies = policies
 
     def wait_until_created(self, templates=None, aliases=None, policies=None):
@@ -88,7 +89,7 @@ class TestCommandSetupIndexManagement(BaseTest):
         logging.getLogger("elasticsearch").setLevel(logging.ERROR)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-        self.idxmgmt = IdxMgmt(self._es, index_name)
+        self.idxmgmt = IdxMgmt(self._es, index_prefix, index_name)
         cleanup(self._es, delete_pipelines=[])
         self.render_config()
 
@@ -242,7 +243,7 @@ class TestRunIndexManagementDefault(ElasticTest):
 
     def setUp(self):
         super(TestRunIndexManagementDefault, self).setUp()
-        self.idxmgmt = IdxMgmt(self.es, index_name)
+        self.idxmgmt = IdxMgmt(self.es, index_prefix, index_name)
 
     def test_template_loaded(self):
         self.idxmgmt.wait_until_created()
@@ -258,7 +259,7 @@ class TestRunIndexManagementWithoutILM(ElasticTest):
 
     def setUp(self):
         super(TestRunIndexManagementWithoutILM, self).setUp()
-        self.idxmgmt = IdxMgmt(self.es, index_name)
+        self.idxmgmt = IdxMgmt(self.es, index_prefix, index_name)
 
     def start_args(self):
         return {"extra_args": ["-E", "apm-server.ilm.enabled=false"]}
@@ -278,7 +279,7 @@ class TestILMConfiguredPolicies(ElasticTest):
     def setUp(self):
         super(TestILMConfiguredPolicies, self).setUp()
         self.custom_policy = "apm-rollover-10-days"
-        self.idxmgmt = IdxMgmt(self.es, index_name, [self.custom_policy, default_policy])
+        self.idxmgmt = IdxMgmt(self.es, index_prefix, index_name, [self.custom_policy, default_policy])
 
     def test_ilm_loaded(self):
         self.idxmgmt.wait_until_created()
@@ -308,7 +309,7 @@ class TestILMCustomAlias(ElasticTest):
 
     def setUp(self):
         super(TestILMCustomAlias, self).setUp()
-        self.idxmgmt = IdxMgmt(self.es, index_name)
+        self.idxmgmt = IdxMgmt(self.es, index_prefix, index_name)
 
     def test_ilm_loaded(self):
         # aliasnames configured in apm-server.yml.j2
@@ -327,7 +328,7 @@ class TestRunIndexManagementWithSetupDisabled(ElasticTest):
 
     def setUp(self):
         super(TestRunIndexManagementWithSetupDisabled, self).setUp()
-        self.idxmgmt = IdxMgmt(self.es, index_name)
+        self.idxmgmt = IdxMgmt(self.es, index_prefix, index_name)
 
     def test_template_and_ilm_loaded(self):
         self.idxmgmt.wait_until_created(templates=[index_name], policies=[], aliases=[])
@@ -350,7 +351,7 @@ class TestCommandSetupTemplate(BaseTest):
         logging.getLogger("elasticsearch").setLevel(logging.ERROR)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-        self.idxmgmt = IdxMgmt(self._es, index_name)
+        self.idxmgmt = IdxMgmt(self._es, index_prefix, index_name)
         cleanup(self._es, delete_pipelines=[])
         self.render_config()
 

@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	defaultPolicyName = "apm-rollover-30-days"
+	policyRollover30days50gb = "apm-rollover-30-days"
+	policyRollover50gb       = "apm-rollover-50-gb"
 )
 
 //Config holds information about ILM mode and whether or not the server should manage the setup
@@ -211,7 +212,11 @@ func applyStaticFmtstr(info beat.Info, s string) (string, error) {
 func defaultMappings() map[string]Mapping {
 	m := map[string]Mapping{}
 	for _, et := range common.EventTypes {
-		m[et] = Mapping{EventType: et, PolicyName: defaultPolicyName,
+		policyName := policyRollover30days50gb
+		if et == "sourcemap" || et == "onboarding" {
+			policyName = policyRollover50gb
+		}
+		m[et] = Mapping{EventType: et, PolicyName: policyName,
 			Index: fmt.Sprintf("%s-%s", common.APMPrefix, et)}
 	}
 	return m
@@ -219,8 +224,8 @@ func defaultMappings() map[string]Mapping {
 
 func defaultPolicies() map[string]Policy {
 	return map[string]Policy{
-		defaultPolicyName: {
-			Name: defaultPolicyName,
+		policyRollover30days50gb: {
+			Name: policyRollover30days50gb,
 			Body: map[string]interface{}{
 				"policy": map[string]interface{}{
 					"phases": map[string]interface{}{
@@ -248,13 +253,28 @@ func defaultPolicies() map[string]Policy {
 				},
 			},
 		},
+		policyRollover50gb: {
+			Name: policyRollover50gb,
+			Body: map[string]interface{}{
+				"policy": map[string]interface{}{
+					"phases": map[string]interface{}{
+						"hot": map[string]interface{}{
+							"actions": map[string]interface{}{
+								"rollover": map[string]interface{}{
+									"max_size": "50gb",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
 func (c *Config) conditionalIndices() []map[string]interface{} {
 	conditions := []map[string]interface{}{
 		common.ConditionalOnboardingIndex(),
-		common.ConditionalSourcemapIndex(),
 	}
 	for _, m := range c.Setup.Mappings {
 		conditions = append(conditions, common.Condition(m.EventType, m.Index))
