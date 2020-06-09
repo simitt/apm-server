@@ -454,7 +454,20 @@ func newMockClientHandler(esVersion string) *mockClientHandler {
 	return &mockClientHandler{esVersion: common.MustNewVersion(esVersion)}
 }
 
-func (h *mockClientHandler) Load(config template.TemplateConfig, _ beat.Info, fields []byte, migration bool) error {
+func (h *mockClientHandler) SupportsDataStream() bool {
+	//TODO(simitt): iplement properly
+	return true
+}
+
+func (h *mockClientHandler) LoadIndexTemplate(config template.TemplateConfig, info beat.Info, fields []byte, migration bool) error {
+	return h.load(config, info, fields, migration)
+}
+
+func (h *mockClientHandler) LoadLegacyTemplate(config template.TemplateConfig, info beat.Info, fields []byte, migration bool) error {
+	return h.load(config, info, fields, migration)
+}
+
+func (h *mockClientHandler) load(config template.TemplateConfig, _ beat.Info, fields []byte, migration bool) error {
 	if strings.Contains(config.Name, "transaction") && !config.Overwrite {
 		return nil
 	}
