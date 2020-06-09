@@ -70,11 +70,16 @@ func (cfg *Config) SelectorConfig() (*libcommon.Config, error) {
 func conditionalIndices() []map[string]interface{} {
 	conditions := []map[string]interface{}{
 		common.ConditionalOnboardingIndex(),
-		common.ConditionalSourcemapIndex(),
 	}
 	for _, k := range common.EventTypes {
-		idxStr := fmt.Sprintf("%s-%s%s", common.APMPrefix, k, "-%{+yyyy.MM.dd}")
-		conditions = append(conditions, common.Condition(k, idxStr))
+		conditions = append(conditions, common.Condition(k, idxName(k)))
 	}
 	return conditions
+}
+
+func idxName(event string) string {
+	if event == "sourcemap" {
+		return fmt.Sprintf("%s-%s", common.APMPrefix, event)
+	}
+	return fmt.Sprintf("%s-%s%s", common.APMPrefix, event, "-%{+yyyy.MM.dd}")
 }
