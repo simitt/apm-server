@@ -27,10 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/elastic/beats/v7/libbeat/beat"
-	"github.com/elastic/beats/v7/libbeat/common"
+	libcommon "github.com/elastic/beats/v7/libbeat/common"
 	libidxmgmt "github.com/elastic/beats/v7/libbeat/idxmgmt"
 	libilm "github.com/elastic/beats/v7/libbeat/idxmgmt/ilm"
 	"github.com/elastic/beats/v7/libbeat/template"
+
+	"github.com/elastic/apm-server/idxmgmt/common"
 )
 
 func TestManager_VerifySetup(t *testing.T) {
@@ -41,7 +43,7 @@ func TestManager_VerifySetup(t *testing.T) {
 		ilmEnabled            string
 		loadTemplate, loadILM libidxmgmt.LoadMode
 		version               string
-		esCfg                 common.MapStr
+		esCfg                 libcommon.MapStr
 
 		ok   bool
 		warn string
@@ -76,12 +78,12 @@ func TestManager_VerifySetup(t *testing.T) {
 		},
 		"ILMAutoCustomIndex": {
 			loadILM: libidxmgmt.LoadModeEnabled,
-			esCfg:   common.MapStr{"output.elasticsearch.index": "custom"},
+			esCfg:   libcommon.MapStr{"output.elasticsearch.index": "custom"},
 			warn:    msgIlmDisabledCfg,
 		},
 		"ILMAutoCustomIndices": {
 			loadILM: libidxmgmt.LoadModeEnabled,
-			esCfg: common.MapStr{"output.elasticsearch.indices": []common.MapStr{{
+			esCfg: libcommon.MapStr{"output.elasticsearch.indices": []libcommon.MapStr{{
 				"index": "apm-custom-%{[observer.version]}-metric",
 				"when": map[string]interface{}{
 					"contains": map[string]interface{}{"processor.event": "metric"}}}}},
@@ -89,12 +91,12 @@ func TestManager_VerifySetup(t *testing.T) {
 		},
 		"ILMTrueCustomIndex": {
 			ilmEnabled: "true", loadILM: libidxmgmt.LoadModeEnabled,
-			esCfg: common.MapStr{"output.elasticsearch.index": "custom"},
+			esCfg: libcommon.MapStr{"output.elasticsearch.index": "custom"},
 			warn:  msgIdxCfgIgnored,
 		},
 		"LogstashOutput": {
 			ilmEnabled: "true", loadILM: libidxmgmt.LoadModeEnabled,
-			esCfg: common.MapStr{
+			esCfg: libcommon.MapStr{
 				"output.elasticsearch.enabled": false,
 				"output.logstash.enabled":      true},
 			warn: "automatically disabled ILM",
@@ -106,7 +108,7 @@ func TestManager_VerifySetup(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := common.MapStr{
+			c := libcommon.MapStr{
 				"setup.template.enabled":         tc.templateEnabled,
 				"apm-server.ilm.setup.enabled":   tc.ilmSetupEnabled,
 				"apm-server.ilm.setup.overwrite": tc.ilmSetupOverwrite,
@@ -134,55 +136,70 @@ func TestManager_SetupTemplate(t *testing.T) {
 	fields := []byte("apm-server fields")
 
 	type testCase struct {
-		cfg      common.MapStr
+		cfg      libcommon.MapStr
 		loadMode libidxmgmt.LoadMode
 
-		templates           int
-		overwrittenTemplate bool
+		templates, templatesILMEnabled int
+		overwrittenTemplate            bool
 	}
 
+	countTemplatesILM := len(common.EventTypes)
+	countTemplates := 3 //sourcemap + onboarding + generic apm
 	var testCasesEnabledTemplate = map[string]testCase{
 		"Default": {
-			loadMode:  libidxmgmt.LoadModeEnabled,
-			templates: 1,
+			loadMode:            libidxmgmt.LoadModeEnabled,
+			templates:           countTemplates,
+			templatesILMEnabled: countTemplatesILM - 1, //one event template is already set up
 		},
 		"OverwriteTemplate": {
-			cfg:       common.MapStr{"setup.template.overwrite": true},
-			loadMode:  libidxmgmt.LoadModeEnabled,
-			templates: 1, overwrittenTemplate: true,
+			cfg:                 libcommon.MapStr{"setup.template.overwrite": true},
+			loadMode:            libidxmgmt.LoadModeEnabled,
+			templates:           countTemplates,
+			templatesILMEnabled: countTemplatesILM,
+			overwrittenTemplate: true,
 		},
 		"LoadModeOverwrite": {
-			loadMode:  libidxmgmt.LoadModeOverwrite,
-			templates: 1, overwrittenTemplate: true,
+			loadMode:            libidxmgmt.LoadModeOverwrite,
+			templates:           countTemplates,
+			templatesILMEnabled: countTemplatesILM,
+			overwrittenTemplate: true,
 		},
 		"LoadModeForce": {
-			loadMode:  libidxmgmt.LoadModeForce,
-			templates: 1, overwrittenTemplate: true,
+			loadMode:            libidxmgmt.LoadModeForce,
+			templates:           countTemplates,
+			templatesILMEnabled: countTemplatesILM,
+			overwrittenTemplate: true,
 		},
 		"LoadModeUnset": {
-			templates: 0,
+			templates:           0,
+			templatesILMEnabled: 0,
 		},
 	}
 	var testCasesDisabledTemplate = map[string]testCase{
 		"DisabledTemplate": {
-			cfg:       common.MapStr{"setup.template.enabled": false},
-			loadMode:  libidxmgmt.LoadModeEnabled,
-			templates: 0,
+			cfg:                 libcommon.MapStr{"setup.template.enabled": false},
+			loadMode:            libidxmgmt.LoadModeEnabled,
+			templates:           0,
+			templatesILMEnabled: 0,
 		},
 		"OverwriteTemplate": {
-			cfg:       common.MapStr{"setup.template.enabled": false, "setup.template.overwrite": true},
-			loadMode:  libidxmgmt.LoadModeEnabled,
-			templates: 0,
+			cfg:                 libcommon.MapStr{"setup.template.enabled": false, "setup.template.overwrite": true},
+			loadMode:            libidxmgmt.LoadModeEnabled,
+			templates:           0,
+			templatesILMEnabled: 0,
 		},
 		"DisabledTemplate LoadModeOverwrite": {
-			cfg:       common.MapStr{"setup.template.enabled": false},
-			loadMode:  libidxmgmt.LoadModeOverwrite,
-			templates: 0,
+			cfg:                 libcommon.MapStr{"setup.template.enabled": false},
+			loadMode:            libidxmgmt.LoadModeOverwrite,
+			templates:           0,
+			templatesILMEnabled: 0,
 		},
 		"DisabledTemplate LoadModeForce": {
-			cfg:       common.MapStr{"setup.template.enabled": false},
-			loadMode:  libidxmgmt.LoadModeForce,
-			templates: 1, overwrittenTemplate: true,
+			cfg:                 libcommon.MapStr{"setup.template.enabled": false},
+			loadMode:            libidxmgmt.LoadModeForce,
+			templates:           countTemplates,
+			templatesILMEnabled: countTemplatesILM,
+			overwrittenTemplate: true,
 		},
 	}
 	for _, test := range []map[string]testCase{testCasesEnabledTemplate, testCasesDisabledTemplate} {
@@ -193,7 +210,8 @@ func TestManager_SetupTemplate(t *testing.T) {
 				indexManager := m.(*manager)
 				require.NoError(t, indexManager.Setup(tc.loadMode, libidxmgmt.LoadModeDisabled))
 
-				require.Equal(t, tc.templates, clientHandler.templates, "loaded template")
+				require.Equal(t, tc.templates, clientHandler.templates, "loaded templates")
+				require.Equal(t, tc.templatesILMEnabled, clientHandler.templatesILMEnabled, "loaded event templates")
 				assert.Equal(t, 0, clientHandler.templatesILMOrder, "order template")
 				assert.Equal(t, tc.overwrittenTemplate, clientHandler.templateForceLoad, "overwritten template")
 			})
@@ -204,72 +222,82 @@ func TestManager_SetupILM(t *testing.T) {
 	fields := []byte("apm-server fields")
 
 	type testCase struct {
-		cfg      common.MapStr
+		cfg      libcommon.MapStr
 		loadMode libidxmgmt.LoadMode
 
-		templatesILMEnabled, templatesILMDisabled int
-		policiesLoaded, aliasesLoaded             int
-		version                                   string
+		otherTemplates, templatesILMEnabled, templatesILMDisabled int
+		policiesLoaded, aliasesLoaded                             int
+		version                                                   string
 	}
 
-	mappingRollover1Day := common.MapStr{"event_type": "error", "policy_name": "rollover-1-day"}
-	policyRollover1Day := common.MapStr{
+	mappingRollover1Day := libcommon.MapStr{"event_type": "error", "policy_name": "rollover-1-day"}
+	policyRollover1Day := libcommon.MapStr{
 		"name": "rollover-1-day",
-		"policy": common.MapStr{
-			"phases": common.MapStr{
-				"delete": common.MapStr{
-					"actions": common.MapStr{
-						"delete": common.MapStr{},
+		"policy": libcommon.MapStr{
+			"phases": libcommon.MapStr{
+				"delete": libcommon.MapStr{
+					"actions": libcommon.MapStr{
+						"delete": libcommon.MapStr{},
 					},
 				},
 			},
 		},
 	}
+	countTemplatesILM := len(common.EventTypes)
+	countOtherTemplates := 3 //sourcemap + onboarding + generic apm
 
 	var testCasesSetupEnabled = map[string]testCase{
 		"Default": {
 			loadMode:            libidxmgmt.LoadModeEnabled,
-			templatesILMEnabled: 4, policiesLoaded: 1, aliasesLoaded: 4,
+			templatesILMEnabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:      countOtherTemplates,
+			policiesLoaded:      1, aliasesLoaded: 4,
 		},
 		"ILM disabled": {
-			cfg:                  common.MapStr{"apm-server.ilm.enabled": false},
+			cfg:                  libcommon.MapStr{"apm-server.ilm.enabled": false},
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 4,
+			templatesILMDisabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:       countOtherTemplates,
 		},
 		"ILM setup enabled no overwrite": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.setup.enabled":   true,
 				"apm-server.ilm.setup.overwrite": false,
-				"apm-server.ilm.setup.mapping":   []common.MapStr{mappingRollover1Day},
-				"apm-server.ilm.setup.policies":  []common.MapStr{policyRollover1Day},
+				"apm-server.ilm.setup.mapping":   []libcommon.MapStr{mappingRollover1Day},
+				"apm-server.ilm.setup.policies":  []libcommon.MapStr{policyRollover1Day},
 			},
 			loadMode:            libidxmgmt.LoadModeEnabled,
-			templatesILMEnabled: 4, policiesLoaded: 1, aliasesLoaded: 4,
+			templatesILMEnabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:      countOtherTemplates,
+			policiesLoaded:      1, aliasesLoaded: 4,
 		},
 		"ILM overwrite": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.setup.overwrite": true,
-				"apm-server.ilm.setup.mapping":   []common.MapStr{mappingRollover1Day},
-				"apm-server.ilm.setup.policies":  []common.MapStr{policyRollover1Day},
+				"apm-server.ilm.setup.mapping":   []libcommon.MapStr{mappingRollover1Day},
+				"apm-server.ilm.setup.policies":  []libcommon.MapStr{policyRollover1Day},
 			},
 			loadMode:            libidxmgmt.LoadModeEnabled,
-			templatesILMEnabled: 5, policiesLoaded: 2, aliasesLoaded: 4,
+			templatesILMEnabled: countTemplatesILM, otherTemplates: countOtherTemplates,
+			policiesLoaded: 2, aliasesLoaded: 4,
 		},
 		"LoadModeOverwrite": {
 			loadMode:            libidxmgmt.LoadModeOverwrite,
-			templatesILMEnabled: 5, policiesLoaded: 1, aliasesLoaded: 4,
+			templatesILMEnabled: countTemplatesILM, otherTemplates: countOtherTemplates,
+			policiesLoaded: 1, aliasesLoaded: 4,
 		},
 		"LoadModeForce ILM enabled": {
 			loadMode:            libidxmgmt.LoadModeForce,
-			templatesILMEnabled: 5, policiesLoaded: 1, aliasesLoaded: 4,
+			templatesILMEnabled: countTemplatesILM, otherTemplates: countOtherTemplates,
+			policiesLoaded: 1, aliasesLoaded: 4,
 		},
 		"LoadModeForce ILM disabled": {
-			cfg:                  common.MapStr{"apm-server.ilm.enabled": false},
+			cfg:                  libcommon.MapStr{"apm-server.ilm.enabled": false},
 			loadMode:             libidxmgmt.LoadModeForce,
-			templatesILMDisabled: 5,
+			templatesILMDisabled: countTemplatesILM, otherTemplates: countOtherTemplates,
 		},
 		"ILM overwrite LoadModeDisabled": {
-			cfg:                 common.MapStr{"apm-server.ilm.setup.overwrite": true},
+			cfg:                 libcommon.MapStr{"apm-server.ilm.setup.overwrite": true},
 			loadMode:            libidxmgmt.LoadModeDisabled,
 			templatesILMEnabled: 0, templatesILMDisabled: 0,
 		},
@@ -280,26 +308,27 @@ func TestManager_SetupILM(t *testing.T) {
 
 	var testCasesSetupDisabled = map[string]testCase{
 		"SetupDisabled": {
-			cfg:      common.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.setup.overwrite": true},
+			cfg:      libcommon.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.setup.overwrite": true},
 			loadMode: libidxmgmt.LoadModeEnabled,
 		},
 		"SetupDisabled ILM disabled": {
-			cfg:      common.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.setup.overwrite": true, "apm-server.ilm.enabled": false},
+			cfg:      libcommon.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.setup.overwrite": true, "apm-server.ilm.enabled": false},
 			loadMode: libidxmgmt.LoadModeEnabled,
 		},
 		"SetupDisabled LoadModeOverwrite": {
-			cfg:      common.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.setup.overwrite": true},
+			cfg:      libcommon.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.setup.overwrite": true},
 			loadMode: libidxmgmt.LoadModeOverwrite,
 		},
 		"SetupDisabled LoadModeForce ILM enabled": {
-			cfg:                 common.MapStr{"apm-server.ilm.setup.enabled": false},
+			cfg:                 libcommon.MapStr{"apm-server.ilm.setup.enabled": false},
 			loadMode:            libidxmgmt.LoadModeForce,
-			templatesILMEnabled: 5, policiesLoaded: 1, aliasesLoaded: 4,
+			templatesILMEnabled: countTemplatesILM, otherTemplates: countOtherTemplates,
+			policiesLoaded: 1, aliasesLoaded: 4,
 		},
 		"SetupDisabled LoadModeForce ILM disabled": {
-			cfg:                  common.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.enabled": false},
-			loadMode:             libidxmgmt.LoadModeForce,
-			templatesILMDisabled: 5,
+			cfg:      libcommon.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.enabled": false},
+			loadMode: libidxmgmt.LoadModeForce, otherTemplates: countOtherTemplates,
+			templatesILMDisabled: countTemplatesILM,
 		},
 		"LoadModeDisabled": {
 			loadMode: libidxmgmt.LoadModeDisabled,
@@ -310,57 +339,61 @@ func TestManager_SetupILM(t *testing.T) {
 		"Default ES Unsupported ILM": {
 			version:              "6.2.0",
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 4,
+			templatesILMDisabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:       countOtherTemplates,
 		},
 		"SetupOverwrite Default ES Unsupported ILM": {
-			cfg:                  common.MapStr{"apm-server.ilm.setup.overwrite": "true"},
+			cfg:                  libcommon.MapStr{"apm-server.ilm.setup.overwrite": "true"},
 			version:              "6.2.0",
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 5,
+			templatesILMDisabled: countTemplatesILM, otherTemplates: countOtherTemplates,
 		},
 		"ILM True ES Unsupported ILM": {
-			cfg:                  common.MapStr{"apm-server.ilm.enabled": "true"},
+			cfg:                  libcommon.MapStr{"apm-server.ilm.enabled": "true"},
 			loadMode:             libidxmgmt.LoadModeEnabled,
 			version:              "6.2.0",
-			templatesILMDisabled: 4,
+			templatesILMDisabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:       countOtherTemplates,
 		},
 		"Default ES Unsupported ILM setup disabled": {
-			cfg:      common.MapStr{"apm-server.ilm.setup.enabled": false},
+			cfg:      libcommon.MapStr{"apm-server.ilm.setup.enabled": false},
 			loadMode: libidxmgmt.LoadModeEnabled,
 			version:  "6.2.0",
 		},
 		"ILM True ES Unsupported ILM setup disabled": {
-			cfg:      common.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.enabled": true},
+			cfg:      libcommon.MapStr{"apm-server.ilm.setup.enabled": false, "apm-server.ilm.enabled": true},
 			loadMode: libidxmgmt.LoadModeEnabled,
 			version:  "6.2.0",
 		},
 	}
 	var testCasesILMNotSupportedByIndexSettings = map[string]testCase{
 		"ESIndexConfigured": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.enabled":       "auto",
 				"apm-server.ilm.setup.enabled": true,
 				"setup.template.name":          "custom",
 				"setup.template.pattern":       "custom",
 				"output.elasticsearch.index":   "custom"},
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 4,
+			templatesILMDisabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:       countOtherTemplates,
 		},
 		"ESIndicesConfigured": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.enabled":       "auto",
 				"apm-server.ilm.setup.enabled": true,
 				"setup.template.name":          "custom",
 				"setup.template.pattern":       "custom",
-				"output.elasticsearch.indices": []common.MapStr{{
+				"output.elasticsearch.indices": []libcommon.MapStr{{
 					"index": "apm-custom-%{[observer.version]}-metric",
 					"when": map[string]interface{}{
 						"contains": map[string]interface{}{"processor.event": "metric"}}}}},
 			loadMode:             libidxmgmt.LoadModeEnabled,
-			templatesILMDisabled: 4,
+			templatesILMDisabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:       countOtherTemplates,
 		},
 		"ESIndexConfigured setup disabled": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.enabled":       "auto",
 				"apm-server.ilm.setup.enabled": false,
 				"setup.template.name":          "custom",
@@ -369,12 +402,12 @@ func TestManager_SetupILM(t *testing.T) {
 			loadMode: libidxmgmt.LoadModeEnabled,
 		},
 		"ESIndicesConfigured setup disabled": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.enabled":       "auto",
 				"apm-server.ilm.setup.enabled": false,
 				"setup.template.name":          "custom",
 				"setup.template.pattern":       "custom",
-				"output.elasticsearch.indices": []common.MapStr{{
+				"output.elasticsearch.indices": []libcommon.MapStr{{
 					"index": "apm-custom-%{[observer.version]}-metric",
 					"when": map[string]interface{}{
 						"contains": map[string]interface{}{"processor.event": "metric"}}}}},
@@ -384,7 +417,7 @@ func TestManager_SetupILM(t *testing.T) {
 
 	var testCasesPolicyNotConfigured = map[string]testCase{
 		"policyNotConfigured": {
-			cfg: common.MapStr{
+			cfg: libcommon.MapStr{
 				"apm-server.ilm.setup": map[string]interface{}{
 					"require_policy": false,
 					"mapping": []map[string]string{
@@ -393,9 +426,11 @@ func TestManager_SetupILM(t *testing.T) {
 				}},
 			loadMode: libidxmgmt.LoadModeEnabled,
 			// templates for all event types are loaded
+			templatesILMEnabled: countTemplatesILM - 1, //transaction template already loaded
+			otherTemplates:      countOtherTemplates,
 			// profile, span, and metrics share the same default policy, one policy is loaded
 			// 1 alias already exists, 4 new ones are loaded
-			templatesILMEnabled: 4, policiesLoaded: 1, aliasesLoaded: 4,
+			policiesLoaded: 1, aliasesLoaded: 4,
 		},
 	}
 
@@ -419,7 +454,8 @@ func TestManager_SetupILM(t *testing.T) {
 				assert.Equal(t, tc.policiesLoaded, len(clientHandler.policies), "policies")
 				assert.Equal(t, tc.aliasesLoaded, len(clientHandler.aliases), "aliases")
 				require.Equal(t, tc.templatesILMEnabled, clientHandler.templatesILMEnabled, "ILM enabled templates")
-				require.Equal(t, tc.templatesILMDisabled, clientHandler.templates, "ILM disabled templates")
+				require.Equal(t, tc.templatesILMDisabled, clientHandler.templatesILMDisabled, "ILM disabled templates")
+				require.Equal(t, tc.otherTemplates, clientHandler.templates, "other templates")
 			})
 		}
 	}
@@ -436,20 +472,20 @@ type mockClientHandler struct {
 
 	aliases, policies []string
 
-	templates, templatesILMEnabled int
-	templatesILMOrder              int
-	templateForceLoad              bool
+	templates, templatesILMEnabled, templatesILMDisabled int
+	templatesILMOrder                                    int
+	templateForceLoad                                    bool
 
-	esVersion *common.Version
+	esVersion *libcommon.Version
 }
 
 var existingILMAlias = fmt.Sprintf("apm-%s-transaction", info.Version)
 var existingILMPolicy = "rollover-1-day"
 var ErrILMNotSupported = errors.New("ILM not supported")
-var esMinILMVersion = common.MustNewVersion("6.6.0")
+var esMinILMVersion = libcommon.MustNewVersion("6.6.0")
 
 func newMockClientHandler(esVersion string) *mockClientHandler {
-	return &mockClientHandler{esVersion: common.MustNewVersion(esVersion)}
+	return &mockClientHandler{esVersion: libcommon.MustNewVersion(esVersion)}
 }
 
 func (h *mockClientHandler) Load(config template.TemplateConfig, _ beat.Info, fields []byte, migration bool) error {
@@ -457,9 +493,10 @@ func (h *mockClientHandler) Load(config template.TemplateConfig, _ beat.Info, fi
 		return nil
 	}
 	if config.Settings.Index != nil && config.Settings.Index["lifecycle.name"] != nil {
-		h.templatesILMEnabled++
-		if len(fields) > 0 {
-			return errors.New("fields should be empty")
+		if strings.Contains(config.Pattern, "disabled") {
+			h.templatesILMDisabled++
+		} else {
+			h.templatesILMEnabled++
 		}
 	} else {
 		h.templates++
