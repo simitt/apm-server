@@ -30,6 +30,7 @@ type Config struct {
 	Indices *libcommon.Config `config:"indices"`
 }
 
+// Customized returns false for default configuration, otherwise returns true.
 func (cfg *Config) Customized() bool {
 	if cfg == nil {
 		return false
@@ -37,6 +38,8 @@ func (cfg *Config) Customized() bool {
 	return cfg.Index != "" || cfg.Indices != nil
 }
 
+// SelectorConfig returns the default index configuration for unmanaged indices,
+// containing the conditions for routing events to the according indices.
 func (cfg *Config) SelectorConfig() (*libcommon.Config, error) {
 	var idcsCfg = libcommon.NewConfig()
 

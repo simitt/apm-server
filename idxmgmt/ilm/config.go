@@ -100,11 +100,10 @@ func NewConfig(info beat.Info, cfg *libcommon.Config) (Config, error) {
 	return config, validate(&config)
 }
 
+// SelectorConfig returns the default index configuration for managed indices,
+// containing the conditions for routing events to the according indices.
 func (c *Config) SelectorConfig() (*libcommon.Config, error) {
 	var idcsCfg = libcommon.NewConfig()
-	// set fallback index for ingested events with unknown event type
-	idcsCfg.SetString("index", -1, common.FallbackIndex)
-
 	if indicesCfg, err := libcommon.NewConfigFrom(c.conditionalIndices()); err == nil {
 		idcsCfg.SetChild("indices", -1, indicesCfg)
 	}
