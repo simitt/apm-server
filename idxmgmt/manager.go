@@ -171,13 +171,13 @@ func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
 			m.supporter.log.Infof("Set setup.template.pattern to '%s'.", m.supporter.templateConfig.Pattern)
 		}
 		if isLegacy {
-			config := m.supporter.templateConfig
-			config.Priority = 100
-			if err := m.loadLegacyTemplate(config, m.assets.Fields(m.supporter.info.Beat)); err != nil {
+			if err := m.loadLegacyTemplate(m.supporter.templateConfig, m.assets.Fields(m.supporter.info.Beat)); err != nil {
 				return err
 			}
 		} else {
-			if err := m.loadIndexTemplate(m.supporter.templateConfig, m.assets.Fields(m.supporter.info.Beat)); err != nil {
+			config := m.supporter.templateConfig
+			config.Priority = 100
+			if err := m.loadIndexTemplate(config, m.assets.Fields(m.supporter.info.Beat)); err != nil {
 				return err
 			}
 		}
@@ -191,6 +191,7 @@ func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
 		templateConfig := ilm.Template(false, ilmFeature.overwrite,
 			ilmSupporter.Alias().Name, ilmSupporter.Policy().Name)
 		if isLegacy {
+			templateConfig.Priority = 200
 			if err := m.loadLegacyTemplate(templateConfig, nil); err != nil {
 				return err
 			}
