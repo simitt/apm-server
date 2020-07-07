@@ -122,7 +122,7 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 	}
 	// load index template for default apm index - with disabled index pattern
 	composedOf := []string{baseComponentName}
-	if err := m.loadIndexTemplate(ilmFeature, baseComponentName, disabledPattern(), composedOf); err != nil {
+	if err := m.loadIndexTemplate(ilmFeature, baseComponentName, disabledPattern(), composedOf, false); err != nil {
 		return err
 	}
 
@@ -130,8 +130,9 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 	for _, t := range []string{"sourcemap", "onboarding"} {
 		name := fmt.Sprintf("%s-%s", common.APMPrefix, t)
 		composedOf := []string{baseComponentName}
-		m.loadIndexTemplate(ilmFeature, name, name+patternSuffix, composedOf)
+		m.loadIndexTemplate(ilmFeature, name, name+patternSuffix, composedOf, false)
 	}
+
 	// load event specific templates, policies and aliases
 	var policiesLoaded []string
 	var err error
@@ -142,16 +143,20 @@ func (m *manager) setupManaged(templateFeature, ilmFeature feature) error {
 		}
 		name := ilmSupporter.Alias().Name
 
+		withDataStreams := m.clientHandler.SupportsDataStream()
 		// load component template per event type (with ILM settings)
-		m.loadEventComponentTemplate(ilmFeature, name, ilmSupporter.Policy().Name)
+		m.loadEventComponentTemplate(ilmFeature, name, ilmSupporter.Policy().Name, withDataStreams)
 
 		// load index template per event type
 		composedOf := []string{baseComponentName, name}
-		m.loadIndexTemplate(ilmFeature, name, name+patternSuffix, composedOf)
+		m.loadIndexTemplate(ilmFeature, name, name+patternSuffix, composedOf, withDataStreams)
 
-		// load ilm write aliases AFTER template creation
-		if err = m.loadLegacyAlias(ilmFeature, ilmSupporter); err != nil {
-			return err
+		// only load regular ILM write alias if data streams are not supported
+		if !withDataStreams {
+			// load ilm write aliases AFTER template creation
+			if err = m.loadLegacyAlias(ilmFeature, ilmSupporter); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -170,12 +175,12 @@ func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
 	// load index template for onboarding and sourcemap index with non-matching index pattern
 	for _, t := range []string{"sourcemap", "onboarding"} {
 		name := fmt.Sprintf("%s-%s", common.APMPrefix, t)
-		m.loadIndexTemplate(ilmFeature, name, disabledPattern(), []string{})
+		m.loadIndexTemplate(ilmFeature, name, disabledPattern(), []string{}, false)
 	}
 	// load event specific index templates with non-matching index pattern
 	for _, ilmSupporter := range m.supporter.ilmSupporters {
 		name := ilmSupporter.Alias().Name
-		m.loadIndexTemplate(ilmFeature, name, disabledPattern(), []string{})
+		m.loadIndexTemplate(ilmFeature, name, disabledPattern(), []string{}, false)
 	}
 
 	// load generic component template
@@ -192,7 +197,7 @@ func (m *manager) setupUnmanaged(templateFeature, ilmFeature feature) error {
 		pattern = baseComponentName + patternSuffix
 	}
 	composedOf := []string{baseComponentName}
-	if err := m.loadIndexTemplate(ilmFeature, baseComponentName, pattern, composedOf); err != nil {
+	if err := m.loadIndexTemplate(ilmFeature, baseComponentName, pattern, composedOf, false); err != nil {
 		return err
 	}
 
@@ -322,7 +327,7 @@ func (m *manager) loadGenericComponentTemplate(templateFeature feature, name str
 	return m.loadTemplate(cfg, m.assets.Fields(m.supporter.info.Beat))
 }
 
-func (m *manager) loadEventComponentTemplate(ilmFeature feature, name, policyName string) error {
+func (m *manager) loadEventComponentTemplate(ilmFeature feature, name, policyName string, withDataStream bool) error {
 	if !ilmFeature.load {
 		return nil
 	}
@@ -332,8 +337,10 @@ func (m *manager) loadEventComponentTemplate(ilmFeature feature, name, policyNam
 	cfg.Enabled = ilmFeature.load
 	cfg.Overwrite = ilmFeature.overwrite
 	cfg.Settings.Index = map[string]interface{}{
-		"lifecycle.name":           policyName,
-		"lifecycle.rollover_alias": cfg.Name,
+		"lifecycle.name": policyName,
+	}
+	if !withDataStream {
+		cfg.Settings.Index["lifecycle.rollover_alias"] = cfg.Name
 	}
 	return m.loadTemplate(cfg, nil)
 }
@@ -346,7 +353,7 @@ func (m *manager) loadTemplate(config template.TemplateConfig, fields []byte) er
 	return nil
 }
 
-func (m *manager) loadIndexTemplate(ilmFeature feature, name, pattern string, composedOf []string) error {
+func (m *manager) loadIndexTemplate(ilmFeature feature, name, pattern string, composedOf []string, withDataStream bool) error {
 	if m.supporter.ilmConfig.Setup.Kind != template.KindIndex {
 		return nil
 	}
@@ -357,6 +364,9 @@ func (m *manager) loadIndexTemplate(ilmFeature feature, name, pattern string, co
 	cfg.ComposedOf = composedOf
 	cfg.Enabled = ilmFeature.load
 	cfg.Overwrite = ilmFeature.overwrite
+	if withDataStream {
+		cfg.DataStream = map[string]string{"timestamp_field": "@timestamp"}
+	}
 	return m.loadTemplate(cfg, nil)
 }
 
