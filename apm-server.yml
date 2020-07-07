@@ -345,6 +345,10 @@ apm-server:
       # Defaults to false.
       #overwrite: false
 
+      # Deprecated: This setting will be removed in 8.0
+      # Set legacy_templates to `true` 
+      #legacy_templates: false
+
       # Set `require_policy` to `false` when policies are set up outside of APM Server but referenced here.
       # Default value is `true`.
       #require_policy: true

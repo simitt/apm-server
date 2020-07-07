@@ -452,6 +452,16 @@ func newMockClientHandler(esVersion string) *mockClientHandler {
 	return &mockClientHandler{esVersion: common.MustNewVersion(esVersion)}
 }
 
+func (h *mockClientHandler) SupportsIndexTemplates() bool {
+	//TODO(simitt): implement properly
+	return true
+}
+func (h *mockClientHandler) SupportsDataStream() bool {
+	//TODO(simitt): implement properly
+	return true
+}
+
+//TODO(simitt): add tests for component, index and legacy template
 func (h *mockClientHandler) Load(config template.TemplateConfig, _ beat.Info, fields []byte, migration bool) error {
 	if strings.Contains(config.Name, "transaction") && !config.Overwrite {
 		return nil
