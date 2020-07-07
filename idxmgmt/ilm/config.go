@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"time"
 
-	libcommon "github.com/elastic/beats/v7/libbeat/common"
-
 	"github.com/pkg/errors"
 
 	"github.com/elastic/beats/v7/libbeat/beat"
+	libcommon "github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/common/fmtstr"
 	libilm "github.com/elastic/beats/v7/libbeat/idxmgmt/ilm"
+	"github.com/elastic/beats/v7/libbeat/template"
 
 	"github.com/elastic/apm-server/idxmgmt/common"
 )
@@ -44,8 +44,11 @@ type Config struct {
 
 //Setup holds information about how to setup ILM
 type Setup struct {
-	Enabled       bool     `config:"enabled"`
-	Overwrite     bool     `config:"overwrite"`
+	Enabled   bool          `config:"enabled"`
+	Overwrite bool          `config:"overwrite"`
+	Kind      template.Kind `config:"kind"`
+	//TODO(simitt): make composed_of configurable
+	//ComposedOf    []string `config:"composed_of"`
 	RequirePolicy bool     `config:"require_policy"`
 	Mappings      Mappings `config:"mapping"`
 	Policies      Policies `config:"policies"`
@@ -77,8 +80,13 @@ type Policy struct {
 // - move the validation part into a `Validate` method
 // - remove the extra handling for `defaultPolicies` and add to defaultConfig instead.
 func NewConfig(info beat.Info, cfg *libcommon.Config) (Config, error) {
-	config := Config{Mode: libilm.ModeAuto,
-		Setup: Setup{Enabled: true, RequirePolicy: true, Mappings: defaultMappings()}}
+	config := Config{
+		Mode: libilm.ModeAuto,
+		Setup: Setup{
+			Enabled:       true,
+			Kind:          template.KindLegacy,
+			RequirePolicy: true,
+			Mappings:      defaultMappings()}}
 	if cfg != nil {
 		if err := cfg.Unpack(&config); err != nil {
 			return Config{}, err

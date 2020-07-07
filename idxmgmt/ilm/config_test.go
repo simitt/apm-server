@@ -27,6 +27,7 @@ import (
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
 	libilm "github.com/elastic/beats/v7/libbeat/idxmgmt/ilm"
+	"github.com/elastic/beats/v7/libbeat/template"
 )
 
 var mockBeatInfo = beat.Info{Beat: "mockapm", Version: "9.9.9"}
@@ -39,6 +40,7 @@ func TestConfig_Default(t *testing.T) {
 		Setup: Setup{
 			Enabled:       true,
 			Overwrite:     false,
+			Kind:          template.KindLegacy,
 			RequirePolicy: true,
 			Mappings:      defaultMappingsResolved(mockBeatInfo),
 			Policies:      defaultPolicies()}}
@@ -120,7 +122,7 @@ func TestConfig_Valid(t *testing.T) {
 		{name: "new policy and index suffix",
 			cfg: `{"setup":{"mapping":[{"event_type":"span","policy_name":"spanPolicy"},{"event_type":"metric","index_suffix":"production"},{"event_type":"error","index_suffix":"%{[observer.name]}"}],"policies":[{"name":"spanPolicy","policy":{"phases":{"foo":{}}}}]}}`,
 			expected: Config{Mode: libilm.ModeAuto,
-				Setup: Setup{Enabled: true, Overwrite: false, RequirePolicy: true,
+				Setup: Setup{Enabled: true, Overwrite: false, Kind: template.KindLegacy, RequirePolicy: true,
 					Mappings: map[string]Mapping{
 						"error": {EventType: "error", PolicyName: defaultPolicyName,
 							Index: "apm-9.9.9-error-mockapm", IndexSuffix: "%{[observer.name]}"},
@@ -144,7 +146,7 @@ func TestConfig_Valid(t *testing.T) {
 		{name: "changed default policy",
 			cfg: `{"setup":{"policies":[{"name":"apm-rollover-30-days","policy":{"phases":{"warm":{"min_age":"30d"}}}}]}}`,
 			expected: Config{Mode: libilm.ModeAuto,
-				Setup: Setup{Enabled: true, Overwrite: false, RequirePolicy: true,
+				Setup: Setup{Enabled: true, Overwrite: false, Kind: template.KindLegacy, RequirePolicy: true,
 					Mappings: defaultMappingsResolved(mockBeatInfo),
 					Policies: map[string]Policy{
 						defaultPolicyName: {Name: defaultPolicyName, Body: map[string]interface{}{
@@ -156,13 +158,21 @@ func TestConfig_Valid(t *testing.T) {
 		{name: "allow unknown policy",
 			cfg: `{"setup":{"require_policy":false,"mapping":[{"event_type":"error","policy_name":"errorPolicy"}]}}`,
 			expected: Config{Mode: libilm.ModeAuto,
-				Setup: Setup{Enabled: true, Overwrite: false, RequirePolicy: false,
+				Setup: Setup{Enabled: true, Overwrite: false, Kind: template.KindLegacy, RequirePolicy: false,
 					Mappings: func() map[string]Mapping {
 						m := defaultMappingsResolved(mockBeatInfo)
 						m["error"] = Mapping{EventType: "error", PolicyName: "errorPolicy",
 							Index: "apm-9.9.9-error"}
 						return m
 					}(),
+					Policies: defaultPolicies(),
+				}},
+		},
+		{name: "kind component",
+			cfg: `{"setup":{"kind":"component"}}`,
+			expected: Config{Mode: libilm.ModeAuto,
+				Setup: Setup{Enabled: true, Overwrite: false, Kind: template.KindComponent, RequirePolicy: true,
+					Mappings: defaultMappingsResolved(mockBeatInfo),
 					Policies: defaultPolicies(),
 				}},
 		},

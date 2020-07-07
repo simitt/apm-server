@@ -62,11 +62,10 @@ require (
 	go.uber.org/zap v1.15.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
-	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae // indirect
 	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	golang.org/x/tools v0.0.0-20200702044944-0cc1aa72b347 // indirect
 	google.golang.org/grpc v1.29.1
 	gopkg.in/yaml.v2 v2.3.0
 	howett.net/plist v0.0.0-20200419221736-3b63eb3a43b5 // indirect
@@ -83,3 +82,5 @@ replace (
 	github.com/tonistiigi/fifo => github.com/containerd/fifo v0.0.0-20190816180239-bda0ff6ed73c
 	k8s.io/client-go => k8s.io/client-go v0.18.3
 )
+
+replace github.com/elastic/beats/v7 => /Users/simitt/coding/go/elastic/beats
