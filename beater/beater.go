@@ -250,10 +250,14 @@ func checkConfig(logger *logp.Logger) error {
 
 // elasticsearchOutputConfig returns nil if the output is not elasticsearch
 func elasticsearchOutputConfig(b *beat.Beat) *common.Config {
-	if b.Config != nil && b.Config.Output.Name() == "elasticsearch" {
+	if hasESOut(b) {
 		return b.Config.Output.Config()
 	}
 	return nil
+}
+
+func hasESOut(b *beat.Beat) bool {
+	return b.Config != nil && b.Config.Output.Name() == "elasticsearch"
 }
 
 func (bt *beater) registerPipelineCallback(b *beat.Beat) error {
