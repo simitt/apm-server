@@ -45,6 +45,7 @@ var (
 
 const (
 	pprofMediaType    = "application/x-protobuf"
+	jfrMediaType      = "application/x-jfr"
 	metadataMediaType = "application/json"
 	requestMediaType  = "multipart/form-data"
 
@@ -81,6 +82,7 @@ func Handler(processor model.BatchProcessor) request.Handler {
 
 		var totalLimitRemaining int64 = profileContentLengthLimit
 		var profiles []*pprof_profile.Profile
+		var jfrProfiles []*model.JfrProfile
 		var profileMetadata model.Metadata
 		mr, err := c.Request.MultipartReader()
 		if err != nil {
@@ -161,15 +163,45 @@ func Handler(processor model.BatchProcessor) request.Handler {
 				}
 				profiles = append(profiles, profile)
 				totalLimitRemaining = r.N
+			case "jfr":
+				_, err := validateContentType(http.Header(part.Header), jfrMediaType)
+				if err != nil {
+					return nil, requestError{
+						id:  request.IDResponseErrorsValidate,
+						err: errors.Wrap(err, "invalid profile"),
+					}
+				}
+				r := &decoder.LimitedReader{R: part, N: totalLimitRemaining}
+				profile, err := model.ParseJfrProfile(r)
+				if err != nil {
+					if r.N < 0 {
+						return nil, requestError{
+							id:  request.IDResponseErrorsRequestTooLarge,
+							err: err,
+						}
+					}
+					return nil, requestError{
+						id:  request.IDResponseErrorsDecode,
+						err: errors.Wrap(err, "failed to decode profile"),
+					}
+				}
+				jfrProfiles = append(jfrProfiles, profile)
+				totalLimitRemaining = r.N
 			}
 		}
 
-		modelProfiles := make([]*model.PprofProfile, len(profiles))
-		for i, p := range profiles {
-			modelProfiles[i] = &model.PprofProfile{
+		transformables := make([]transform.Transformable, 0, len(profiles) + len(jfrProfiles))
+		for _, p := range profiles {
+			transformables = append(transformables, model.PprofProfile{
 				Metadata: profileMetadata,
 				Profile:  p,
-			}
+			})
+		}
+		for _, p := range jfrProfiles {
+			transformables = append(transformables, model.JfrProfileEvent{
+				Metadata: profileMetadata,
+				Profile:  p,
+			})
 		}
 
 		if err := processor.ProcessBatch(c.Request.Context(), &model.Batch{Profiles: modelProfiles}); err != nil {
