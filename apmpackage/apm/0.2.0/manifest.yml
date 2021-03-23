@@ -38,8 +38,37 @@ policy_templates:
     multiple: false
     inputs:
       - type: apm
-        title: Collect application traces
-        description: Collect application traces
+        name: classic
+        title: Collect application traces using classic mode
+        description: Collect application traces using classic mode
+        vars:
+          - name: apm-server
+            type: yml
+          - name: queue
+            type: yml
+          - name: max_procs
+            type: integer
+          - name: setup
+            type: yml
+          - name: cloud
+            type: yml
+          - name: output
+            type: yml
+          - name: instrumentation
+            type: yml
+          - name: path
+            type: yml
+          - name: logging
+            type: yml
+          - name: http
+            type: yml
+          - name: monitoring
+            type: yml
+        template_path: template-classic.yml.hbs
+      - type: apm
+        name: data-streams
+        title: Collect application traces using data streams
+        description: Collect application traces using data streams
         vars:
           - name: host
             type: text
