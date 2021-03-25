@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/pflag"
 
@@ -43,7 +44,37 @@ var libbeatConfigOverrides = []cfgfile.ConditionalOverride{{
 	Check: func(_ *common.Config) bool {
 		return true
 	},
-	Config: common.MustNewConfigFrom(map[string]interface{}{
+	Config: common.MustNewConfigFrom(m()),
+}}
+
+func m() map[string]interface{} {
+	queueMemFlushMinEvents := 1200
+	queueMemEvents := 10
+	esWorker := 10
+	esBulkMaxSize := 2000
+	fmt.Println("------------ CONFIG INIT")
+	if mem := os.Getenv("ELASTIC_CLOUD_MEM"); mem != "" {
+		fmt.Println("------------ CONFIG INIT WITH ELASTIC_CLOUD_MEM" + mem)
+		switch mem {
+		case "0.5":
+			esWorker = 2
+			esBulkMaxSize = 100
+			queueMemEvents = 500
+			queueMemFlushMinEvents = 100
+		case "1":
+			esWorker = 4
+			esBulkMaxSize = 1000
+			queueMemEvents = 4000
+			queueMemFlushMinEvents = 1000
+		default:
+			esWorker = 8
+			esBulkMaxSize = 5000
+			queueMemEvents = 20000
+			queueMemFlushMinEvents = 5000
+
+		}
+	}
+	return map[string]interface{}{
 		"logging": map[string]interface{}{
 			"metrics": map[string]interface{}{
 				"enabled": false,
@@ -51,8 +82,20 @@ var libbeatConfigOverrides = []cfgfile.ConditionalOverride{{
 			"ecs":  true,
 			"json": true,
 		},
-	}),
-}}
+		"output": map[string]interface{}{
+			"elasticsearch": map[string]interface{}{
+				"worker":        esWorker,
+				"bulk_max_size": esBulkMaxSize,
+			},
+		},
+		"queue": map[string]interface{}{
+			"mem": map[string]interface{}{
+				"events":           queueMemEvents,
+				"flush.min_events": queueMemFlushMinEvents,
+			},
+		},
+	}
+}
 
 // DefaultSettings return the default settings for APM Server to pass into
 // the GenRootCmdWithSettings.
