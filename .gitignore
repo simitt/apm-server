@@ -1,3 +1,5 @@
+cmd/apmbench/testrun/
+cmd/apmbench/apmbench
 /.ci/docker/bats-core
 /.ci/docker/tests/test_helper
 /.ci/docker/target

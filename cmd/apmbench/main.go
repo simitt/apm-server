@@ -35,7 +35,6 @@ import (
 	"github.com/google/pprof/profile"
 
 	"go.elastic.co/apm"
-	"go.elastic.co/apm/transport"
 )
 
 func init() {
@@ -89,21 +88,6 @@ func queryExpvar(out *expvar) error {
 	}
 	defer resp.Body.Close()
 	return json.NewDecoder(resp.Body).Decode(out)
-}
-
-func newTracer(tb testing.TB) *apm.Tracer {
-	httpTransport, err := transport.NewHTTPTransport()
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tracer, err := apm.NewTracerOptions(apm.TracerOptions{
-		Transport: httpTransport,
-	})
-	if err != nil {
-		tb.Fatal(err)
-	}
-	tb.Cleanup(tracer.Close)
-	return tracer
 }
 
 func fetchProfile(urlPath string, duration time.Duration) (*profile.Profile, error) {
@@ -314,28 +298,11 @@ func Benchmark(f func(b *testing.B)) (testing.BenchmarkResult, bool, error) {
 	result.MemAllocs = after.MemStats.Mallocs - before.MemStats.Mallocs
 	result.MemBytes = after.MemStats.TotalAlloc - before.MemStats.TotalAlloc
 	result.Bytes = after.UncompressedBytes - before.UncompressedBytes
+	if result.Extra == nil {
+		result.Extra = make(map[string]float64)
+	}
 	result.Extra["events/sec"] = float64(after.TotalEvents-before.TotalEvents) / result.T.Seconds()
 	return result, ok, nil
-}
-
-func benchmark100Transactions(b *testing.B) {
-	b.RunParallel(func(pb *testing.PB) {
-		tracer := newTracer(b)
-		for pb.Next() {
-			for i := 0; i < 100; i++ {
-				tracer.StartTransaction("name", "type").End()
-			}
-			// TODO(axw) implement a transport that enables streaming
-			// events in a way that we can block when the queue is full,
-			// without flushing. Alternatively, make this an option in
-			// TracerOptions?
-			tracer.Flush(nil)
-		}
-		stats := tracer.Stats()
-		if n := stats.Errors.SendStream; n > 0 {
-			b.Errorf("expected 0 transport errors, got %d", n)
-		}
-	})
 }
 
 func fullBenchmarkName(name string, agents int) string {
@@ -366,6 +333,11 @@ func main() {
 	}
 	benchmarks := []benchmark{
 		{"Benchmark_100_Transactions", benchmark100Transactions},
+		{"Benchmark_100_TransactionsWithSpans", benchmark100TransactionsWithSpans},
+		{"Benchmark_100_TransactionsWithSpansWithStacktraces", benchmark100TransactionsWithSpansWithStacktraces},
+		{"Benchmark_100_5_Errors", benchmark100_5Errors},
+		{"Benchmark_100_7_Errors", benchmark100_7Errors},
+		{"Benchmark_100_10_Errors", benchmark100_10Errors},
 	}
 
 	var maxLen int
