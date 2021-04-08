@@ -42,7 +42,7 @@ func init() {
 }
 
 var (
-	server        = flag.String("server", "http://localhost:8200", "apm-server URL")
+	server        = flag.String("server", "http://localhost :8200", "apm-server URL")
 	count         = flag.Uint("count", 1, "run benchmarks `n` times")
 	agentsListStr = flag.String("agents", "1", "comma-separated `list` of agent counts to run each benchmark with")
 	benchtime     = flag.Duration("benchtime", time.Second, "run each benchmark for duration `d`")
@@ -332,12 +332,14 @@ func main() {
 		benchFunc func(*testing.B)
 	}
 	benchmarks := []benchmark{
-		{"Benchmark_100_Transactions", benchmark100Transactions},
-		{"Benchmark_100_TransactionsWithSpans", benchmark100TransactionsWithSpans},
-		{"Benchmark_100_TransactionsWithSpansWithStacktraces", benchmark100TransactionsWithSpansWithStacktraces},
-		{"Benchmark_100_5_Errors", benchmark100_5Errors},
-		{"Benchmark_100_7_Errors", benchmark100_7Errors},
-		{"Benchmark_100_10_Errors", benchmark100_10Errors},
+		{"100_Transactions", benchmark100Transactions},
+		{"100_5Spans_5Frames", benchmark100_5_5_Spans},
+		{"100_15Spans_15Frames", benchmark100_15_15_Spans},
+		{"100_30Spans_30Frames", benchmark100_30_30_Spans},
+		{"100_5Error_5Frames", benchmark100_5_5_Errors},
+		{"100_10Error_10Frames", benchmark100_10_10_Errors},
+		{"100_15Error_15Frames", benchmark100_15_15_Errors},
+		{"100_1Error_30Frames", benchmark100_1_30_Errors},
 	}
 
 	var maxLen int
