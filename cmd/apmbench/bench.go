@@ -154,6 +154,22 @@ func benchmark100_1_30_Errors(b *testing.B) {
 	})
 }
 
+func benchmark100_10_30_Errors(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		tracer := newTracer(b)
+		for pb.Next() {
+			for i := 0; i < 100; i++ {
+				withErrors(tracer, 10, 30)
+			}
+			tracer.Flush(nil)
+		}
+		stats := tracer.Stats()
+		if n := stats.Errors.SendStream; n > 0 {
+			b.Errorf("expected 0 transport errors, got %d", n)
+		}
+	})
+}
+
 func withTransaction(tracer *apm.Tracer) {
 	tx := tracer.StartTransaction("unsampled-transaction", "request")
 	defer tx.End()
@@ -161,7 +177,7 @@ func withTransaction(tracer *apm.Tracer) {
 }
 
 func withSpans(tracer *apm.Tracer, spans int, stacktraces int) {
-	tx := tracer.StartTransaction("with_spans", "request")
+	tx := tracer.StartTransaction(fmt.Sprintf("with-spans-%d-stacktraces-%d", spans, stacktraces), "request")
 	defer tx.End()
 	var parentSpan *apm.Span
 	for i := 0; i < spans; i++ {
