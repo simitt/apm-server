@@ -19,6 +19,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -42,7 +43,7 @@ func init() {
 }
 
 var (
-	server        = flag.String("server", "http://localhost:8200", "apm-server URL")
+	server        = flag.String("server", "", "apm-server URL")
 	count         = flag.Uint("count", 1, "run benchmarks `n` times")
 	agentsListStr = flag.String("agents", "1", "comma-separated `list` of agent counts to run each benchmark with")
 	benchtime     = flag.Duration("benchtime", time.Second, "run each benchmark for duration `d`")
@@ -76,13 +77,17 @@ type LibbeatStats struct {
 }
 
 func queryExpvar(out *expvar) error {
-	req, err := http.NewRequest("GET", *server+"/debug/vars", nil)
+	url := *server + "/debug/vars"
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
+	client := http.DefaultClient
+	if strings.HasPrefix(url, "https") {
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
