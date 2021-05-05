@@ -50,6 +50,7 @@ func runBenchmark(f func(b *testing.B)) (testing.BenchmarkResult, bool, error) {
 	var before, after expvar
 	result := testing.Benchmark(func(b *testing.B) {
 		if err := queryExpvar(&before); err != nil {
+			fmt.Println(fmt.Sprintf("----- expvar error %v", err))
 			b.Error(err)
 			ok = !b.Failed()
 			return
@@ -57,6 +58,7 @@ func runBenchmark(f func(b *testing.B)) (testing.BenchmarkResult, bool, error) {
 		f(b)
 		for !b.Failed() {
 			if err := queryExpvar(&after); err != nil {
+				fmt.Println("----- expvar error")
 				b.Error(err)
 				break
 			}

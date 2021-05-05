@@ -18,9 +18,11 @@
 package benchtest
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"runtime"
+	"strings"
 )
 
 // TODO(axw) reuse apmservertest.Expvar, expose function(s) for fetching
@@ -47,13 +49,17 @@ type LibbeatStats struct {
 }
 
 func queryExpvar(out *expvar) error {
-	req, err := http.NewRequest("GET", *server+"/debug/vars", nil)
+	url := *server + "/debug/vars"
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
+	client := http.DefaultClient
+	if strings.HasPrefix(url, "https") {
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

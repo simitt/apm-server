@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	server        = flag.String("server", "http://localhost:8200", "apm-server URL")
+	server        = flag.String("server", os.Getenv("ELASTIC_APM_SERVER_URL"), "apm-server URL")
 	count         = flag.Uint("count", 1, "run benchmarks `n` times")
 	agentsListStr = flag.String("agents", "1", "comma-separated `list` of agent counts to run each benchmark with")
 	benchtime     = flag.Duration("benchtime", time.Second, "run each benchmark for duration `d`")
