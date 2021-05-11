@@ -48,6 +48,7 @@ type Batch struct {
 	Metricsets   []*Metricset
 	Errors       []*Error
 	Profiles     []*PprofProfile
+	JfrProfiles  []*JfrProfileEvent
 }
 
 // Reset resets the batch to be empty, but it retains the underlying storage.
@@ -81,6 +82,9 @@ func (b *Batch) Transform(ctx context.Context, cfg *transform.Config) []beat.Eve
 		events = event.appendBeatEvents(ctx, cfg, events)
 	}
 	for _, event := range b.Profiles {
+		events = event.appendBeatEvents(cfg, events)
+	}
+	for _, event := range b.JfrProfiles {
 		events = event.appendBeatEvents(cfg, events)
 	}
 	return events

@@ -1,16 +1,12 @@
 package model
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/cespare/xxhash/v2"
 	"github.com/elastic/apm-server/datastreams"
 	"github.com/elastic/apm-server/transform"
-	"github.com/elastic/apm-server/utility"
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
-	"github.com/gofrs/uuid"
 	"golang.org/x/text/encoding/charmap"
 	"io"
 	"io/ioutil"
@@ -30,93 +26,122 @@ type JfrProfileEvent struct {
 	Profile  *JfrProfile
 }
 
-func (jp JfrProfileEvent) Transform(ctx context.Context, cfg *transform.Config) []beat.Event {
-	profileTimestamp := time.Unix(0, jp.Profile.startNanos)
-	var profileID string
-	if uuid, err := uuid.NewV4(); err == nil {
-		profileID = fmt.Sprintf("%x", uuid)
-	}
-	samples := make([]beat.Event, 0, 1000)
-	//prevTime := jp.Profile.startTicks
-	//var currentTime int64
-	var currentSampleEvent *beat.Event
-	var currentSampleCount int
-	//var currentThread int
-	var currentSampleStackTraceId int
-	for _, sample := range jp.Profile.samples {
-		//currentTime = sample.time
-		//currentThread = sample.tid
-		if currentSampleStackTraceId == sample.stackTraceId {
-			currentSampleCount++
-		} else {
-			if currentSampleEvent != nil {
-				profile := currentSampleEvent.Fields[profileDocType].(common.MapStr)
-				utility.Set(profile, "samples.count", currentSampleCount)
-				//utility.Set(profile, "cpu.ns", currentTime-prevTime)
-				samples = append(samples, *currentSampleEvent)
-				//prevTime = currentTime
-			}
-
-			currentSampleCount = 1
-			currentSampleStackTraceId = sample.stackTraceId
-			currentSampleEvent = jp.NewSampleEvent(profileID, sample, profileTimestamp, cfg)
-		}
-	}
-	if currentSampleEvent != nil {
-		profile := currentSampleEvent.Fields[profileDocType].(common.MapStr)
-		utility.Set(profile, "samples.count", currentSampleCount)
-		//utility.Set(profile, "cpu.ns", currentTime-prevTime)
-		samples = append(samples, *currentSampleEvent)
-	}
-	return samples
+type FlameGraph struct {
+	samples int64
+	children map[string]*FlameGraph
 }
 
-func (jp JfrProfileEvent) NewSampleEvent(profileID string, sample *JfrSample, profileTimestamp time.Time, cfg *transform.Config) *beat.Event {
-	profileFields := common.MapStr{}
-	if profileID != "" {
-		profileFields["id"] = profileID
-	}
-	if jp.Profile.durationNanos > 0 {
-		profileFields["duration"] = jp.Profile.durationNanos
-	}
-	hash := xxhash.New()
-
-	stackTrace := jp.Profile.stackTraces[int64(sample.stackTraceId)]
-
-	if stackTrace != nil && len(stackTrace.methods) > 0 {
-		stack := make([]common.MapStr, len(stackTrace.methods))
-		for i := len(stackTrace.methods) - 1; i >= 0; i-- {
-			methodId := stackTrace.methods[i]
-			method := jp.Profile.methods[methodId]
-			methodSignature := jp.Profile.symbols[method.name]
-			hash.WriteString(methodSignature)
-			fields := common.MapStr{
-				"id":       fmt.Sprintf("%x", hash.Sum(nil)),
-				"function": methodSignature,
-			}
-			if classNameId, ok := jp.Profile.classes[method.cls]; ok {
-				if className := jp.Profile.symbols[classNameId]; className != "" {
-					utility.Set(fields, "filename", className)
-				}
-			}
-			stack[i] = fields
+func (f *FlameGraph) addChild(signature string, samples int64) *FlameGraph {
+	frame, ok := f.children[signature]
+	if !ok {
+		frame = &FlameGraph{
+			samples:  0,
+			children: map[string]*FlameGraph{},
 		}
-		utility.Set(profileFields, "stack", stack)
-		utility.Set(profileFields, "top", stack[0])
+		f.children[signature] = frame
 	}
-	event := beat.Event{
-		Timestamp: profileTimestamp,
-		Fields: common.MapStr{
-			"processor":    profileProcessorEntry,
-			profileDocType: profileFields,
+	frame.samples += samples
+	return frame
+}
+
+type FlatFlameGraph struct {
+	levels  []int
+	samples []int64
+	typ     []byte
+	titles  []int
+	symbols Symbols
+}
+
+func NewFlatFlameGraph(f *FlameGraph) *FlatFlameGraph {
+	flattened := &FlatFlameGraph{
+		levels:  make([]int, 0, 1000),
+		samples: make([]int64, 0, 1000),
+		typ:     make([]byte, 0, 1000),
+		titles:  make([]int, 0, 1000),
+		symbols: Symbols{
+			symbolToId: make(map[string]int, 1000),
+			symbols:    make([]string, 0, 1000),
 		},
 	}
-	if cfg.DataStreams {
-		event.Fields[datastreams.TypeField] = datastreams.MetricsType
-		dataset := fmt.Sprintf("%s.%s", ProfilesDataset, datastreams.NormalizeServiceName(jp.Metadata.Service.Name))
-		event.Fields[datastreams.DatasetField] = dataset
+	for sig, child := range f.children {
+		flattened.addFrame(0, sig, child)
 	}
-	return &event
+	return flattened
+}
+
+func (f *FlatFlameGraph) addFrame(level int, signature string, frame *FlameGraph) {
+	f.levels = append(f.levels, level)
+	f.samples = append(f.samples, frame.samples)
+	f.titles = append(f.titles, f.symbols.symbolize(signature))
+	for sig, child := range frame.children {
+		f.addFrame(level + 1, sig, child)
+	}
+}
+
+type Symbols struct {
+	symbolToId map[string]int
+	symbols    []string
+}
+
+func (s *Symbols) symbolize(str string) int {
+	if symbolId, ok := s.symbolToId[str]; ok {
+		return symbolId
+	}
+	symbolId := len(s.symbolToId)
+	s.symbolToId[str] = symbolId
+	s.symbols = append(s.symbols, str)
+	return symbolId
+}
+
+func (s *Symbols) resolveSymbol(symbolId int) string {
+	return s.symbols[symbolId]
+}
+
+func NewFlameGraph(jp *JfrProfileEvent) *FlameGraph {
+	root := &FlameGraph{
+		samples:  0,
+		children: map[string]*FlameGraph{},
+	}
+	for _, stackTrace := range jp.Profile.stackTraces {
+		current := root
+		for _, method := range stackTrace.methods {
+			methodRef := jp.Profile.methods[method]
+
+			var signature string
+			methodName := jp.Profile.symbols[methodRef.name]
+			if className := jp.Profile.symbols[methodRef.cls]; len(className) > 0 {
+				signature = className + "." + methodName
+			} else {
+				signature = methodName
+			}
+			current = current.addChild(signature, stackTrace.samples)
+		}
+	}
+	return root
+}
+func (jp JfrProfileEvent) appendBeatEvents(cfg *transform.Config, events []beat.Event) []beat.Event {
+	profileTimestamp := time.Unix(0, jp.Profile.startNanos)
+	flatTree := NewFlatFlameGraph(NewFlameGraph(&jp))
+	profileFields := common.MapStr{}
+	profileFields["levels"] = flatTree.levels
+	profileFields["samples"] = flatTree.samples
+	profileFields["titles"] = flatTree.titles
+	profileFields["symbols"] = flatTree.symbols.symbols
+
+	fields := mapStr{
+		"processor":    profileProcessorEntry,
+		profileDocType: profileFields,
+	}
+	if cfg.DataStreams {
+		fields[datastreams.TypeField] = datastreams.MetricsType
+		dataset := fmt.Sprintf("%s.%s", ProfilesDataset, datastreams.NormalizeServiceName(jp.Metadata.Service.Name))
+		fields[datastreams.DatasetField] = dataset
+	}
+	events = append(events, beat.Event{
+		Timestamp: profileTimestamp,
+		Fields:    common.MapStr(fields),
+	})
+	return events
 }
 
 type JfrProfile struct {

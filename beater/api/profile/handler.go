@@ -190,18 +190,19 @@ func Handler(processor model.BatchProcessor) request.Handler {
 			}
 		}
 
-		transformables := make([]transform.Transformable, 0, len(profiles) + len(jfrProfiles))
-		for _, p := range profiles {
-			transformables = append(transformables, model.PprofProfile{
+		modelProfiles := make([]*model.PprofProfile, len(profiles))
+		for i, p := range profiles {
+			modelProfiles[i] = &model.PprofProfile{
 				Metadata: profileMetadata,
 				Profile:  p,
-			})
+			}
 		}
-		for _, p := range jfrProfiles {
-			transformables = append(transformables, model.JfrProfileEvent{
+		modelJfrProfiles := make([]*model.JfrProfileEvent, len(jfrProfiles))
+		for i, p := range jfrProfiles {
+			modelJfrProfiles[i] = &model.JfrProfileEvent{
 				Metadata: profileMetadata,
 				Profile:  p,
-			})
+			}
 		}
 
 		if err := processor.ProcessBatch(c.Request.Context(), &model.Batch{Profiles: modelProfiles}); err != nil {

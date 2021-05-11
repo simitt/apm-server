@@ -1,14 +1,14 @@
 package model
 
 import (
-	"context"
 	"github.com/elastic/apm-server/transform"
+	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 )
 
-func TestParse(t *testing.T) {
+func TestParseJfr(t *testing.T) {
 	profile, err := os.Open("../testdata/profile/profile.jfr")
 	if err != nil {
 		t.Error(err)
@@ -31,6 +31,13 @@ func TestParse(t *testing.T) {
 		Metadata: Metadata{Service: Service{Name: "myService", Environment: "test"}},
 		Profile:  jfrProfile,
 	}
-	events := event.Transform(context.Background(), &transform.Config{DataStreams: true})
-	assert.Equal(t, 2, len(events))
+
+	flameGraph := NewFlameGraph(&event)
+	assert.NotEmpty(t, flameGraph.children)
+	flatFlameGraph := NewFlatFlameGraph(flameGraph)
+	assert.NotEmpty(t, flatFlameGraph.samples)
+	assert.Greater(t, flatFlameGraph.samples[0], int64(0))
+
+	events := event.appendBeatEvents(&transform.Config{DataStreams: true}, []beat.Event{})
+	assert.Equal(t, 1, len(events))
 }
