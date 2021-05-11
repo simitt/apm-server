@@ -40,13 +40,10 @@
   description: Processor name.
 - name: profile.levels
   type: integer
-  index: false
 - name: profile.samples
   type: long
-  index: false
 - name: profile.signatures
   type: integer
-  index: false
 - name: profile.symbols
   type: keyword
 - name: service.environment

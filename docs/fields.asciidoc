@@ -2292,182 +2292,37 @@ type: keyword
 --
 
 
-*`profile.id`*::
+*`profile.levels`*::
 +
 --
-Unique ID for the profile. All samples within a profile will have the same profile ID.
+type: integer
 
+Field is not indexed.
 
+--
+
+*`profile.samples`*::
++
+--
+type: long
+
+Field is not indexed.
+
+--
+
+*`profile.signatures`*::
++
+--
+type: integer
+
+Field is not indexed.
+
+--
+
+*`profile.symbols`*::
++
+--
 type: keyword
-
---
-
-*`profile.duration`*::
-+
---
-Duration of the profile, in microseconds. All samples within a profile will have the same duration. To aggregate durations, you should first group by the profile ID.
-
-
-type: long
-
---
-
-
-*`profile.cpu.ns`*::
-+
---
-Amount of CPU time profiled, in nanoseconds.
-
-
-type: long
-
---
-
-
-*`profile.wall.us`*::
-+
---
-Amount of wall time profiled, in microseconds.
-
-
-type: long
-
---
-
-
-*`profile.samples.count`*::
-+
---
-Number of profile samples for the profiling period.
-
-
-type: long
-
---
-
-
-*`profile.alloc_objects.count`*::
-+
---
-Number of objects allocated since the process started.
-
-
-type: long
-
---
-
-
-*`profile.alloc_space.bytes`*::
-+
---
-Amount of memory allocated, in bytes, since the process started.
-
-
-type: long
-
---
-
-
-*`profile.inuse_objects.count`*::
-+
---
-Number of objects allocated and currently in use.
-
-
-type: long
-
---
-
-
-*`profile.inuse_space.bytes`*::
-+
---
-Amount of memory allocated, in bytes, and currently in use.
-
-
-type: long
-
---
-
-
-*`profile.top.id`*::
-+
---
-Unique ID for the top stack frame in the context of its callers.
-
-
-type: keyword
-
---
-
-*`profile.top.function`*::
-+
---
-Function name for the top stack frame.
-
-
-type: keyword
-
---
-
-*`profile.top.filename`*::
-+
---
-Source code filename for the top stack frame.
-
-
-type: keyword
-
---
-
-*`profile.top.line`*::
-+
---
-Source code line number for the top stack frame.
-
-
-type: long
-
---
-
-
-*`profile.stack.id`*::
-+
---
-Unique ID for a stack frame in the context of its callers.
-
-
-type: keyword
-
---
-
-*`profile.stack.function`*::
-+
---
-Function name for a stack frame.
-
-
-type: keyword
-
---
-
-*`profile.stack.filename`*::
-+
---
-Source code filename for a stack frame.
-
-
-type: keyword
-
---
-
-*`profile.stack.line`*::
-+
---
-Source code line number for a stack frame.
-
-
-type: long
 
 --
 
