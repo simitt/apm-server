@@ -190,6 +190,8 @@ update-beats: update-beats-module update
 
 .PHONY: update-beats-module
 update-beats-module:
+	@echo $(BEATS_MODULE)
+	@echo $(BEATS_VERSION)
 	$(GO) get -d -u $(BEATS_MODULE)@$(BEATS_VERSION) && $(GO) mod tidy
 	diff -u .go-version $$($(GO) list -m -f {{.Dir}} $(BEATS_MODULE))/.go-version \
 		|| { code=$$?; echo ".go-version out of sync with Beats"; exit $$code; }
