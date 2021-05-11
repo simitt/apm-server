@@ -6,13 +6,17 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/elastic/beats/v7/libbeat/esleg/eslegclient"
+	"github.com/elastic/beats/v7/libbeat/licenser"
 	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/monitoring"
+	libes "github.com/elastic/beats/v7/libbeat/outputs/elasticsearch"
 	"github.com/elastic/beats/v7/libbeat/paths"
 
 	"github.com/elastic/apm-server/beater"
@@ -88,19 +92,41 @@ func newProcessors(args beater.ServerParams) ([]namedProcessor, error) {
 	return processors, nil
 }
 
+// Verify checks if the connection endpoint is really Elasticsearch.
+func licensePlatinumCovered(client *eslegclient.Connection) error {
+	// Logger created earlier than this place are at risk of discarding any log statement.
+	log := logp.NewLogger("elasticsearch")
+
+	fetcher := licenser.NewElasticFetcher(client)
+	license, err := fetcher.Fetch()
+	if err != nil {
+		return fmt.Errorf("could not connect to a compatible version of Elasticsearch: %w", err)
+	}
+
+	// Return error if license is expired
+	if licenser.IsExpired(license) {
+		log.Errorf("%s license is expired", license.Type)
+		return errors.New("Elasticsearch license is not active, please check Elasticsearch's licensing information at https://www.elastic.co/subscriptions.")
+	}
+
+	licenseToCover := licenser.Platinum
+	log.Infof("Checking license for tail-based sampling covers %s", licenseToCover)
+	if license.Cover(licenseToCover) || license.Type == licenser.Trial {
+		return nil
+	}
+	return fmt.Errorf("invalid license found, tail-based sampling requires a %s or a valid trial license and received %s",
+		licenseToCover, license.Type,
+	)
+}
+
 func newTailSamplingProcessor(args beater.ServerParams) (*sampling.Processor, error) {
 	// Tail-based sampling is a Platinum-licensed feature.
 	//
-	// FIXME(axw) each time licenser.Enforce is called an additional global
+	// FIXME(axw) each time libes.RegisterGlobalCallback is called an additional global
 	// callback is registered with Elasticsearch, which fetches the license
-	// and checks it. The root command already calls licenser.Enforce with
-	// licenser.BasicAndAboveOrTrial. We need to make this overridable to
-	// avoid redundant checks.
-	// checkPlatinum := licenser.CheckLicenseCover(licenser.Platinum)
-	// licenser.Enforce("apm-server", func(logger *logp.Logger, license licenser.License) bool {
-	// 	logger.Infof("Checking license for tail-based sampling")
-	// 	return checkPlatinum(logger, license) || licenser.CheckTrial(logger, license)
-	// })
+	// and checks it. The root command already calls libes.RegisterGlobalCallback for
+	// license basic or above. We need to make this overridable to avoid redundant checks.
+	libes.RegisterGlobalCallback(licensePlatinumCovered)
 
 	tailSamplingConfig := args.Config.Sampling.Tail
 	es, err := elasticsearch.NewClient(tailSamplingConfig.ESConfig)
