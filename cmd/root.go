@@ -156,4 +156,5 @@ func cloudValues(m map[string]interface{}) {
 			},
 		},
 	}
+	m["xpack.monitoring.enabled"] = true
 }
