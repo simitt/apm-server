@@ -61,6 +61,8 @@ $(APM_SERVER_FIPS_BINARIES):
 	docker container create --name apm-server-fips-cont apm-server-fips-image-temp
 	mkdir -p build
 	docker cp apm-server-fips-cont:/usr/share/apm-server/apm-server "build/apm-server-fips-$(GOOS)-$(GOARCH)"
+	docker cp apm-server-fips-cont:/usr/share/apm-server/apm-server.dependencies "build/apm-server-fips-$(GOOS)-$(GOARCH).dependencies"
+
 	# cleanup running container
 	docker container rm apm-server-fips-cont
 	docker image rm apm-server-fips-image-temp
@@ -82,6 +84,9 @@ $(APM_SERVER_BINARIES):
 apm-server-build:
 	env CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 	go build -o "build/apm-server-$(GOOS)-$(GOARCH)$(SUFFIX)$(EXTENSION)" -trimpath $(GOFLAGS) $(GOTAGS) $(GOMODFLAG) -ldflags "$(LDFLAGS)" $(PKG)
+	@echo "Generating dependencies output..."
+	-env CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
+	go build -v $(GOFLAGS) $(GOMODFLAG) -gcflags="all=-N -l" -ldflags=-dumpdep $(GOTAGS) $(PKG) 2>"build/apm-server-$(GOOS)-$(GOARCH)$(SUFFIX)$(EXTENSION).dependencies"
 
 build/apm-server-linux-% build/apm-server-fips-linux-%: GOOS=linux
 build/apm-server-darwin-%: GOOS=darwin
@@ -121,6 +126,7 @@ apm-server apm-server-oss apm-server-fips:
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) PKG=$(PKG) GOTAGS=$(GOTAGS) SUFFIX=$(SUFFIX) EXTENSION=$(EXTENSION) \
 		    $(MAKE) apm-server-build
 	@[ "${NOCP}" ] || cp "build/apm-server-$(GOOS)-$(GOARCH)$(SUFFIX)$(EXTENSION)" "apm-server$(SUFFIX)"
+	@[ "${NOCP}" ] || cp "build/apm-server-$(GOOS)-$(GOARCH)$(SUFFIX)$(EXTENSION).dependencies" "apm-server$(SUFFIX).dependencies"
 
 .PHONY: test
 test:

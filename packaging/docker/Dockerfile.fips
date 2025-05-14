@@ -81,6 +81,7 @@ COPY --chmod=0644 --chown=nonroot:nonroot NOTICE-fips.txt /licenses/NOTICE.txt
 WORKDIR /usr/share/apm-server
 COPY --chmod=0755 --chown=nonroot:nonroot --from=builder /src/apm-server-fips ./apm-server
 COPY --chmod=0644 --chown=nonroot:nonroot --from=builder /src/apm-server.yml ./apm-server.yml
+COPY --chmod=0644 --chown=nonroot:nonroot --from=builder /src/apm-server-fips.dependencies ./apm-server.dependencies
 
 EXPOSE 8200
 ENTRYPOINT ["/usr/share/apm-server/apm-server", "--environment=container"]
